@@ -1,0 +1,4 @@
+.ENV
+.env
+data/*.sqlite3
+uppsell/settings.py
