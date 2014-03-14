@@ -31,26 +31,12 @@ api.add_resource(ApiMap, '/')
 
 for installed_app in settings.INSTALLED_APPS:
     try:
-        modname = "%s.uppsell.routes"%installed_app
+        modname = "%s.api.routes"%installed_app
         module = __import__(modname, globals(), locals(), [], -1)
         for route in module.uppsell.routes.ROUTES:
             api.add_resource(*route)
     except (ImportError, AttributeError):
         pass
-
-#api.add_resource(resources.ProductsResource, '/products')
-#api.add_resource(resources.ProductResource, '/products/<product_id>')
-#api.add_resource(resources.StoresResource, '/stores')
-#api.add_resource(resources.StoreResource, '/stores/<store_id>')
-#api.add_resource(resources.StoreProductsResource, '/stores/<store_id>/products')
-#api.add_resource(resources.StoreProductResource, '/stores/<store_id>/products/<product_id>')
-#api.add_resource(resources.VouchersResource, '/vouchers')
-#api.add_resource(resources.VoucherResource, '/vouchers/<string:code>')
-#api.add_resource(resources.VoucherUsersResource, '/vouchers/<string:code>/users')
-#api.add_resource(resources.InvoicesResource, '/invoices')
-#api.add_resource(resources.InvoiceResource, '/invoices/<invoice_id>')
-#api.add_resource(resources.OrdersResource, '/orders')
-#api.add_resource(resources.OrderResource, '/orders/<order_id>')
 
 if __name__ == '__main__':
     app.run(debug=settings.DEBUG)

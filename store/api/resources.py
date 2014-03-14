@@ -28,3 +28,25 @@ class StoreResource(Resource):
         except ObjectDoesNotExist:
             return not_found(message="Store does not exist")
 
+# curl -D- -X POST http://api/order/transition -d"transition=cancel"
+class OrderActionResource(Resource):
+    def post(self, order_id):
+        event = self.POST.event
+        order = Order.objects.get(pk=order_id)
+        try:
+            order.order_workflow.do_transition(transition)
+            return ok()
+        except BadTransition:
+            return bad_request()
+
+# curl -D- -X POST http://api/order/transition -d"transition=cancel"
+class PaymentActionResource(Resource):
+    def post(self, order_id):
+        event = self.POST.event
+        order = Order.objects.get(pk=order_id)
+        try:
+            order.payment_workflow.do_transition(transition)
+            return ok()
+        except BadTransition:
+            return bad_request()
+

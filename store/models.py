@@ -1,12 +1,15 @@
 from django.db import models
-from django.contrib.auth.models import AbstractBaseUser
-from customer.models import Customer
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
+from django.db.models.signals import post_save
+from uppsell.workflow import Workflow, BadTransition, pre_transition_handler, \
+        post_transition_handler
 
-ADDRESS_TYPES = (
+ADDRESS_TYPES = ( # (type, description)
     ('billing', 'Billing'),
     ('shipping', 'Shipping'),
 )
-ORDER_STATES = (
+ORDER_STATES = ( # (order_state, description)
+    ('init', 'Initialized'),
     ('pending_payment', 'Pending Payment'),
     ('processing', 'Processing'),
     ('shipping', 'Shipping'),
@@ -15,7 +18,7 @@ ORDER_STATES = (
     ('canceled', 'Canceled'),
     ('hold', 'On Hold'),
 )
-ORDER_TRANSITIONS = (
+ORDER_TRANSITIONS = ( # (order_transition, description)
     ('open', 'Open'),
     ('capture', 'Capture payment'),
     ('ship', 'Ship'),
@@ -24,7 +27,20 @@ ORDER_TRANSITIONS = (
     ('deny', 'Deny cancelation'),
     ('process', 'Process order'),
 )
-PAYMENT_STATES = (
+ORDER_WORKFLOW = ( # (transition, state_before, state_after)
+    ('open', 'init', 'pending_payment'),
+    ('capture', 'pending_payment', 'processing'),
+    ('cancel', 'pending_payment', 'canceled'),
+    ('cancel', 'processing', 'canceled'),
+    ('ship', 'processing', 'shipping'),
+    ('receive', 'shipping', 'completed'),
+    ('process', 'processing', 'completed'),
+    ('cancel', 'completed', 'cancellation_requested'),
+    ('deny', 'cancellation_requested', 'completed'),
+    ('cancel', 'cancellation_requested', 'canceled'),
+)
+PAYMENT_STATES = ( # (payment_state, description)
+    ('init', 'Initialized'),
     ('pending', 'Pending Payment'),
     ('authorized', 'Authorized'),
     ('captured', 'Captured'),
@@ -32,10 +48,10 @@ PAYMENT_STATES = (
     ('declined', 'Declined'),
     ('expired', 'Expired'),
     ('disputed', 'Disputed'),
-    ('charge_back', 'Charge Back'),
+    ('charged_back', 'Charge Back'),
     ('refunded', 'Refunded'),
 )
-PAYMENT_TRANSITIONS = (
+PAYMENT_TRANSITIONS = ( # (payment_transition, description)
     ('start', 'Start'),
     ('authorize', 'Authorize'),
     ('capture', 'Capture'),
@@ -47,25 +63,55 @@ PAYMENT_TRANSITIONS = (
     ('chargeback', 'Chargeback'),
     ('refund', 'Refund'),
 )
-PRODUCT_STATES = (
-    ('active', 'Active'),       # available for sale
-    ('inactive', 'Inactive'),   # not available for sale
-    ('hidden', 'Hidden')        # available but not on general display
+PAYMENT_WORKFLOW = ( # (transition, state_before, state_after)
+    ('start', 'init', 'pending'),
+    ('capture', 'pending', 'captured'),
+    ('authorize', 'pending', 'authorized'),
+    ('capture', 'authorized', 'captured'),
+    ('decline', 'pending', 'declined'),
+    ('cancel', 'pending', 'canceled'),
+    ('expire', 'pending', 'expired'),
+    ('expire', 'authorized', 'expired'),
+    ('dispute', 'capture', 'disputed'),
+    ('refuse', 'disputed', 'capture'),
+    ('chargeback', 'disputed', 'charged_back'),
+    ('refund', 'capture', 'refunded'),
+)
+PRODUCT_STATES = ( # (product_state, description)
+    ('init', 'Init'),
+    ('active', 'Active'),
+    ('inactive', 'Inactive'),
+    ('hidden', 'Hidden')
+)
+PRODUCT_TRANSITIONS = ( # (product_transition, description)
+    ('create', 'Create'),
+    ('activate', 'Activate'),
+    ('deactivate', 'Deactivate'),
+    ('hide', 'Hide'),
+    ('show', 'Show'),
+)
+PRODUCT_TRANSITIONS = ( # (transition, state_before, state_after)
+    ('create', 'init', 'active'),
+    ('activate', 'inactive', 'active'),
+    ('hide', 'inactive', 'hidden'),
+    ('hide', 'active', 'hidden'),
+    ('show', 'hidden', 'active'),
+    ('deactivate', 'hidden', 'inactive'),
+    ('deactivate', 'active', 'inactive'),
+)
+ORDER_EVENT_TYPES = (
+    ('order', 'Order Event'),
+    ('payment', 'Payment  Event'),
+    ('fraud', 'Fraud Event'),
 )
 
-class Customer(AbstractBaseUser):
+class Customer(models.Model):
     username = models.CharField("Username", max_length=30, unique=True)
     first_name = models.CharField('First name', max_length=30, blank=True)
     last_name = models.CharField('Last name', max_length=30, blank=True)
     email = models.EmailField('Email address', blank=True)
     created_at = models.DateTimeField('Date Added', auto_now_add=True)
     last_logged_in_at = models.DateTimeField('Last logged in')
-    
-    USERNAME_FIELD = 'username'
-    REQUIRED_FIELDS = []
-
-    class Meta:
-        pass
     
     def __unicode__(self):
         return self.username
@@ -149,7 +195,7 @@ class Listing(models.Model):
     description = models.CharField(max_length=10000, blank=True)
     
     def __unicode__(self):
-        return self.product
+        return self.product.name
 
 class Cart(models.Model):
     store = models.ForeignKey(Store)
@@ -167,35 +213,74 @@ class Order(models.Model):
     store = models.ForeignKey(Store)
     customer = models.ForeignKey(Customer)
     
-    order_state = models.CharField(max_length=30, choices=ORDER_STATES)
-    payment_state = models.CharField(max_length=30, choices=PAYMENT_STATES)
+    order_state = models.CharField(max_length=30, choices=ORDER_STATES, default="init")
+    payment_state = models.CharField(max_length=30, choices=PAYMENT_STATES, default="init")
     fraud_state = models.CharField(max_length=30)
     
-    transaction_id = models.CharField(max_length=200)
-    shipping_address = models.ForeignKey(Address, related_name="shipping_address")
-    billing_address = models.ForeignKey(Address, related_name="billing_address")
+    transaction_id = models.CharField(max_length=200, blank=True)
+    shipping_address = models.ForeignKey(Address, related_name="shipping_address", null=True, blank=True)
+    billing_address = models.ForeignKey(Address, related_name="billing_address", null=True, blank=True)
 
     order_total = models.DecimalField(max_digits=8, decimal_places=2)
     order_shipping_total = models.DecimalField(max_digits=8, decimal_places=2)
     currency = models.CharField(max_length=3)
 
-    payment_made_ts = models.DateTimeField('timestamp payment captured')
+    payment_made_ts = models.DateTimeField('timestamp payment captured', null=True, blank=True)
     created_at = models.DateTimeField('timestamp created', auto_now_add=True)
     updated_at = models.DateTimeField('timestamp modifeid', auto_now=True)
     
-    def __unicode__(self):
-        return self.id
+    _order_workflow = None
+    _payment_workflow = None
+
+    def save(self, *args, **kwargs):
+        super(Order, self).save(*args, **kwargs)
+        if self.order_state == "init":
+            OrderEvent.objects.create(order=self, action_type="order", event="open")
+    
+    @property
+    def order_workflow(self, transitions = None):
+        if self._order_workflow is None:
+            self._order_workflow = Workflow(self, u"order_state", ORDER_WORKFLOW)
+        return self._order_workflow
+    
+    @property
+    def payment_workflow(self, transitions = None):
+        if self._payment_workflow is None:
+            self._payment_workflow = Workflow(self, u"payment_state", PAYMENT_WORKFLOW)
+        return self._payment_workflow
+    
+    def event(self, event_type, event):
+        OrderEvent.objects.create(order=self,
+                action_type=event_type, event=event)
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order)
     product = models.ForeignKey(Listing)
     quantity = models.PositiveIntegerField(default=1)
 
-class OrderHistory(models.Model):
+class OrderEvent(models.Model):
     order = models.ForeignKey(Order)
-    order_state_before = models.CharField(max_length=30, choices=ORDER_STATES)
-    payment_state = models.CharField(max_length=30, choices=PAYMENT_STATES)
-    fraud_state = models.CharField(max_length=30)
+    action_type = models.CharField(max_length=30, choices=ORDER_EVENT_TYPES)
+    event = models.CharField(max_length=30)
+    state_before = models.CharField(max_length=30)
+    state_after = models.CharField(max_length=30)
+    comment = models.CharField(max_length=2000, blank=True)
+    created_at = models.DateTimeField('Event timestamp', auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        try:
+            if self.action_type == 'order':
+                self.state_before = self.order.order_state
+                self.order.order_workflow.do(self.event)
+                self.state_after = self.order.order_state
+            if self.action_type == 'payment':
+                self.state_before = self.order.payment_state
+                self.order.payment_workflow.do(self.event)
+                self.state_after = self.order.payment_state
+        except BadTransition:
+            raise
+        self.order.save()
+        super(OrderEvent, self).save(*args, **kwargs)
 
 class Invoice(models.Model):
     order_id = models.IntegerField(unique=True) # non-relational
@@ -222,4 +307,5 @@ class Invoice(models.Model):
     
     payment_made_ts = models.DateTimeField('timestamp payment captured')
     created_at = models.DateTimeField('timestamp created', auto_now_add=True)
+
 

@@ -4,4 +4,3 @@ class ModelResource(Resource):
     model = None
     
 
-
