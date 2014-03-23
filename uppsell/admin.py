@@ -4,7 +4,7 @@ from django.conf.urls import url, patterns
 from django.contrib.admin.util import (unquote, flatten_fieldsets, get_deleted_objects,
     model_format_dict, NestedObjects, lookup_needs_distinct)
 from django.http import HttpResponse, HttpResponseRedirect
-from store import models
+from uppsell import models
 from uppsell.workflow import BadTransition
 
 
@@ -97,10 +97,12 @@ class OrderAdmin(admin.ModelAdmin):
     show_customer.short_description = "Customer"
 
 admin.site.register(models.Customer)
+admin.site.register(models.Address)
 admin.site.register(models.Store)
 admin.site.register(models.ProductGroup)
 admin.site.register(models.Product)
 admin.site.register(models.Listing, ListingAdmin)
 admin.site.register(models.Order, OrderAdmin)
 admin.site.register(models.Invoice)
+admin.site.register(models.Coupon)
 

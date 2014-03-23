@@ -37,8 +37,7 @@ INSTALLED_APPS = (
     'django.contrib.staticfiles',
     'grappelli',
     'south',
-    'customer',
-    'store',
+    'upppsell',
 )
 
 MIDDLEWARE_CLASSES = (
@@ -50,9 +49,9 @@ MIDDLEWARE_CLASSES = (
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 )
 
-ROOT_URLCONF = 'uppsell.urls'
+ROOT_URLCONF = 'django_site.urls'
 
-WSGI_APPLICATION = 'uppsell.wsgi.application'
+WSGI_APPLICATION = 'django_site.wsgi.application'
 
 
 # Database

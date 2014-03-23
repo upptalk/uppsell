@@ -1,6 +1,6 @@
 from flask.ext.restful import Resource, reqparse
 from uppsell.util.responses import *
-from store.models import Product
+from uppsell.models import Product
 
 class ProductsResource(Resource):
     def get(self):

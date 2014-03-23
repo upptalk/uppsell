@@ -1,8 +1,10 @@
 from django.db import models
+from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db.models.signals import post_save
-from uppsell.workflow import Workflow, BadTransition, pre_transition_handler, \
+from workflow import Workflow, BadTransition, pre_transition_handler, \
         post_transition_handler
+from uppsell.exceptions import CouponLimitError
 
 ADDRESS_TYPES = ( # (type, description)
     ('billing', 'Billing'),
@@ -107,12 +109,21 @@ ORDER_EVENT_TYPES = (
 
 class Customer(models.Model):
     username = models.CharField("Username", max_length=30, unique=True)
-    first_name = models.CharField('First name', max_length=30, blank=True)
-    last_name = models.CharField('Last name', max_length=30, blank=True)
-    email = models.EmailField('Email address', blank=True)
+    first_name = models.CharField('First name', max_length=30, blank=True, db_index=True)
+    last_name = models.CharField('Last name', max_length=30, blank=True, db_index=True)
+    email = models.EmailField('Email address', blank=True, db_index=True)
     created_at = models.DateTimeField('Date Added', auto_now_add=True)
-    last_logged_in_at = models.DateTimeField('Last logged in')
+    last_logged_in_at = models.DateTimeField('Last logged in', blank=True, null=True)
     
+    class Meta:
+        db_table = 'customers'
+        verbose_name = 'Customer'
+        verbose_name_plural = 'Customers'
+    
+    def apply_coupon_code(self, coupon_code):
+        coupon = Coupon.objects.get(code=coupon_code)
+        coupon.spend(self)
+
     def __unicode__(self):
         return self.username
 
@@ -131,15 +142,35 @@ class Address(models.Model):
     created_at = models.DateTimeField('Date Added', auto_now_add=True)
     last_used = models.DateTimeField('Date Added', blank=True, null=True)
 
+    class Meta:
+        db_table = 'addresses'
+        verbose_name = 'Address'
+        verbose_name_plural = 'Addresses'
+
 class LinkedAccountType(models.Model):
     type = models.CharField("Account Type", max_length=32)
+
+    class Meta:
+        db_table = 'linked_account_types'
+        verbose_name = 'Account Type'
+        verbose_name_plural = 'Account Types'
 
 class LinkedAccount(models.Model):
     type = models.ForeignKey(LinkedAccountType)
     customer = models.ForeignKey(Customer)
+    provider = models.CharField("Provider", max_length=64)
     account_id = models.CharField("Linked Account ID", max_length=255)
+    key = models.CharField("Key", max_length=2000)
     linked_at = models.DateTimeField('Date Linked', auto_now_add=True)
     updated_at = models.DateTimeField('Date Modifeid',  auto_now=True)
+
+    class Meta:
+        db_table = 'linked_accounts'
+        verbose_name = 'Linked account'
+        verbose_name_plural = 'Linked accounts'
+
+    def __unicode__(self):
+        return self.name
 
 class Store(models.Model):
     code = models.CharField(max_length=200)
@@ -149,12 +180,18 @@ class Store(models.Model):
     sales_tax_rate = models.FloatField()
     created_at = models.DateTimeField('date created', auto_now_add=True)
     updated_at = models.DateTimeField('date modifeid',  auto_now=True)
-    
+
+    class Meta:
+        db_table = 'stores'
+
     def __unicode__(self):
         return self.name
 
 class ProductGroup(models.Model):
     name = models.CharField(max_length=50)
+
+    class Meta:
+        db_table = 'product_groups'
 
     def __unicode__(self):
         return self.name
@@ -170,6 +207,9 @@ class Product(models.Model):
     created_at = models.DateTimeField('date created', auto_now_add=True)
     updated_at = models.DateTimeField('date modified', auto_now=True)
     
+    class Meta:
+        db_table = 'products'
+
     def __unicode__(self):
         return self.name
 
@@ -181,6 +221,10 @@ class ProductCode(models.Model):
     type = models.CharField(max_length=20)
     product = models.ForeignKey(ProductGroup)
     code = models.CharField(max_length=255)
+    
+    class Meta:
+        db_table = 'product_codes'
+    
     def __unicode__(self):
         return u"<%s %s>" % (self.type, self.code)
 
@@ -194,6 +238,9 @@ class Listing(models.Model):
     subtitle = models.CharField(max_length=200, blank=True)
     description = models.CharField(max_length=10000, blank=True)
     
+    class Meta:
+        db_table = 'listings'
+    
     def __unicode__(self):
         return self.product.name
 
@@ -202,11 +249,69 @@ class Cart(models.Model):
     customer = models.ForeignKey(Listing)
     created_at = models.DateTimeField('date created', auto_now_add=True)
     updated_at = models.DateTimeField('date modified', auto_now=True)
+    
+    class Meta:
+        db_table = 'carts'
+        verbose_name = 'Shopping cart'
+        verbose_name_plural = 'Shopping carts'
 
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart)
     product = models.ForeignKey(Listing)
     quantity = models.PositiveIntegerField(default=1)
+    
+    class Meta:
+        db_table = 'cart_items'
+        verbose_name = 'Shopping cart item'
+        verbose_name_plural = 'Shopping cart items'
+
+class Coupon(models.Model):
+    RELATIONS = (('individual', 'Individual'),
+            ('product', 'Product'),
+            ('group', 'Product Group'),
+            ('shipping', 'Shipping'))
+    TYPES = (('fixed_discount', 'Fixed Discount'),
+            ('pct_discount', 'Percentage Discount'))
+    relation = models.CharField("Relation", max_length=16, choices=RELATIONS)
+    type = models.CharField("Type", max_length=16, choices=TYPES)
+    code = models.CharField("Code", max_length=40)
+    
+    store = models.ForeignKey(Store)
+    customer = models.ForeignKey(Customer, blank=True, null=True) # Optionally eferences Customer for "individual" coupon
+    product = models.ForeignKey(Listing, blank=True, null=True) # References Listing for "product" coupon
+    product_group = models.ForeignKey(ProductGroup, blank=True, null=True) # References ProductGroup for "group" coupon
+    
+    discount_amount = models.DecimalField("Fixed discount", max_digits=8, decimal_places=2, blank=True, null=True)
+    discount_pct = models.PositiveIntegerField("Percent discount", blank=True, null=True)
+    max_uses = models.PositiveIntegerField("Max uses")
+    remaining = models.PositiveIntegerField("Remaining")
+    valid_from = models.DateTimeField('Start validity', auto_now_add=True)
+    valid_until = models.DateTimeField('End validity')
+    created_at = models.DateTimeField('timestamp created', auto_now_add=True)
+    updated_at = models.DateTimeField('timestamp modifeid', auto_now=True)
+    
+    class Meta:
+        db_table = 'coupons'
+        verbose_name = 'Coupon'
+        verbose_name_plural = 'Coupons'
+
+    def spend(self, customer):
+        if self.remaining == 0:
+            raise CouponLimitError
+        try:
+            existing = CouponSpend.objects.get(coupon=self, customer=customer)
+            raise CouponSpendError
+        except ObjectDoesNotExist:
+            pass
+        spend = CouponSpend.objects.create(coupon=self, customer=customer)
+
+class CouponSpend(models.Model):
+    customer = models.ForeignKey(Customer)
+    coupon = models.ForeignKey(Coupon)
+    created_at = models.DateTimeField('timestamp created', auto_now_add=True)
+    class Meta:
+        db_table = 'coupon_spends'
+        unique_together = (('customer', 'coupon'),)
 
 class Order(models.Model):
     
@@ -216,6 +321,8 @@ class Order(models.Model):
     order_state = models.CharField(max_length=30, choices=ORDER_STATES, default="init")
     payment_state = models.CharField(max_length=30, choices=PAYMENT_STATES, default="init")
     fraud_state = models.CharField(max_length=30)
+    
+    coupon = models.ForeignKey(Coupon, null=True)
     
     transaction_id = models.CharField(max_length=200, blank=True)
     shipping_address = models.ForeignKey(Address, related_name="shipping_address", null=True, blank=True)
@@ -231,6 +338,9 @@ class Order(models.Model):
     
     _order_workflow = None
     _payment_workflow = None
+    
+    class Meta:
+        db_table = 'orders'
 
     def save(self, *args, **kwargs):
         super(Order, self).save(*args, **kwargs)
@@ -249,14 +359,32 @@ class Order(models.Model):
             self._payment_workflow = Workflow(self, u"payment_state", PAYMENT_WORKFLOW)
         return self._payment_workflow
     
+    @property
+    def total_net(self):
+        pass
+
+    @property
+    def total_tax(self):
+        pass
+
+    @property
+    def total_shipping(self):
+        pass
+    
+    @property
+    def total(self):
+        pass
+
     def event(self, event_type, event):
-        OrderEvent.objects.create(order=self,
-                action_type=event_type, event=event)
+        OrderEvent.objects.create(order=self, action_type=event_type, event=event)
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order)
     product = models.ForeignKey(Listing)
     quantity = models.PositiveIntegerField(default=1)
+    
+    class Meta:
+        db_table = 'order_items'
 
 class OrderEvent(models.Model):
     order = models.ForeignKey(Order)
@@ -266,6 +394,9 @@ class OrderEvent(models.Model):
     state_after = models.CharField(max_length=30)
     comment = models.CharField(max_length=2000, blank=True)
     created_at = models.DateTimeField('Event timestamp', auto_now_add=True)
+
+    class Meta:
+        db_table = 'order_events'
 
     def save(self, *args, **kwargs):
         try:
@@ -308,4 +439,6 @@ class Invoice(models.Model):
     payment_made_ts = models.DateTimeField('timestamp payment captured')
     created_at = models.DateTimeField('timestamp created', auto_now_add=True)
 
+    class Meta:
+        db_table = 'invoices'
 
