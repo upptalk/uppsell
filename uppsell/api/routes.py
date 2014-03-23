@@ -1,4 +1,4 @@
-from store.uppsell import resources
+from uppsell.api import resources
 
 ROUTES = (
     (resources.ProductsResource, '/product'),

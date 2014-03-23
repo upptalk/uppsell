@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import os
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "uppsell.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "django_site.settings")
 from django.conf import settings
 from flask import Flask, make_response
 from flask.ext import restful
@@ -33,7 +33,7 @@ for installed_app in settings.INSTALLED_APPS:
     try:
         modname = "%s.api.routes"%installed_app
         module = __import__(modname, globals(), locals(), [], -1)
-        for route in module.uppsell.routes.ROUTES:
+        for route in module.api.routes.ROUTES:
             api.add_resource(*route)
     except (ImportError, AttributeError):
         pass
