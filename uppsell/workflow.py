@@ -36,9 +36,11 @@ def transition_callback(callback):
     wrapper.__name__ = controller.__name__  
     return wrapper
 
-class BadTransition(Exception):
-    pass
 class CancelTransition(Exception):
+    """Cancel the current transition"""
+    pass
+class BadTransition(CancelTransition):
+    """The current transition is not allowed"""
     pass
 
 class State(object):
