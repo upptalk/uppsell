@@ -23,6 +23,10 @@ for event, event_name in models.ORDER_TRANSITIONS:
 for event, event_name in models.PAYMENT_TRANSITIONS:
     order_actions.append(order_event_handler("payment", event, event_name))
 
+# ====================================================================================
+# IN-LINES
+# ====================================================================================
+
 class OrderEventInline(admin.TabularInline):
     model = models.OrderEvent
     extra = 0
@@ -30,9 +34,28 @@ class OrderEventInline(admin.TabularInline):
     fields = ('action_type', 'event', 'state_before', 'state_after', 'comment', 'created_at')
     readonly_fields  = fields
 
+class CustomerOrderInline(admin.TabularInline):
+    model = models.Order
+    extra = 0
+    can_delete = False
+    #fields = ('action_type', 'event', 'state_before', 'state_after', 'comment', 'created_at')
+    #readonly_fields  = fields
+
+# ====================================================================================
+# ADMINS
+# ====================================================================================
+
 class ListingAdmin(admin.ModelAdmin):
-    fields = ('store', 'product', "sales_tax_rate", "name", "title", "subtitle", "description")
-    
+        fields = ('store', 'product', "sales_tax_rate", "name", "title", "subtitle", "description")
+
+class CustomerAdmin(admin.ModelAdmin):
+    list_display = ('username', 'show_name', 'email', 'created_at')
+    inlines = (CustomerOrderInline,)
+    def show_name(self, obj):
+        return "%s %s" % (obj.first_name, obj.last_name)
+    show_name.allow_tags = True
+    show_name.short_description = "Name"
+
 class OrderAdmin(admin.ModelAdmin):
     list_display = ('id', 'show_store', 'show_customer', 'order_state', 'payment_state', 'action_pulldown')
     list_filter = ('store', 'order_state', 'payment_state')
@@ -96,7 +119,7 @@ class OrderAdmin(admin.ModelAdmin):
     show_customer.allow_tags = True
     show_customer.short_description = "Customer"
 
-admin.site.register(models.Customer)
+admin.site.register(models.Customer, CustomerAdmin)
 admin.site.register(models.Address)
 admin.site.register(models.Store)
 admin.site.register(models.ProductGroup)
