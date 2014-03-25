@@ -173,7 +173,7 @@ class LinkedAccount(models.Model):
         return self.name
 
 class Store(models.Model):
-    code = models.CharField(max_length=200)
+    code = models.CharField(max_length=200, unique=True)
     name = models.CharField(max_length=200)
     default_lang = models.CharField(max_length=3)
     default_currency = models.CharField(max_length=3)

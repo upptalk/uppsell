@@ -107,14 +107,14 @@ class OrderAdmin(admin.ModelAdmin):
     
     def show_store(self, obj):
         if obj.store:
-            return '<a href="/store/store/%s">%s</a>' % (obj.store.id, obj.store)
+            return '<a href="/uppsell/store/%s">%s</a>' % (obj.store.id, obj.store)
         return ""
     show_store.allow_tags = True
     show_store.short_description = "Store"
 
     def show_customer(self, obj):
         if obj.customer:
-            return '<a href="/store/customer/%s">%s</a>' % (obj.customer.id, obj.customer)
+            return '<a href="/uppsell/customer/%s">%s</a>' % (obj.customer.id, obj.customer)
         return ""
     show_customer.allow_tags = True
     show_customer.short_description = "Customer"

@@ -35,7 +35,7 @@ for installed_app in settings.INSTALLED_APPS:
         module = __import__(modname, globals(), locals(), [], -1)
         for route in module.api.routes.ROUTES:
             api.add_resource(*route)
-    except (ImportError, AttributeError):
+    except (ImportError, AttributeError) as e:
         pass
 
 if __name__ == '__main__':
