@@ -1,8 +1,10 @@
 from flask.ext.restful import Resource
+from uppsell.util.responses import *
 
 class ModelResource(Resource):
 
     model = None
+    
     read_only = ()
     fields = ()
     list_display = ()
@@ -19,6 +21,10 @@ class ModelResource(Resource):
     def __init__(model):
         self.model = model
     
+    @property
+    def label(self):
+        return u"%s/%s" % (self.model._meta.app_label, self.model.__class__.__name__)
+
     def get(self, id=None):
         if id:
             return self.get_item(id)
@@ -35,20 +41,38 @@ class ModelResource(Resource):
         if id:
             return self.delete_item(id)
         return self.delete_list
-    def get_item(self, id):
-        pass
+    
+    def get_item(self, **kwargs):
+        if not self.allow_get_item:
+            return method_not_allowed()
+        return ok(self.label, result=self.model.objects.get(**kwargs))
+        
     def get_list(self):
-        pass
-    def put_item(self, id):
-        pass
+        if not self.allow_get_list:
+            return method_not_allowed()
+        return ok(self.label, result=self.model.objects.all())
+    
+    def put_item(self, **kwargs):
+        if not self.allow_put_item:
+            return method_not_allowed()
+    
     def put_list(self):
-        pass
+        if not self.allow_put_item:
+            return method_not_allowed()
+    
     def post_item(self, id):
-        pass
+        if not self.allow_post_item:
+            return method_not_allowed()
+    
     def post_list(self):
-        pass
+        if not self.allow_post_list:
+            return method_not_allowed()
+    
     def delete_item(self, id):
-        pass
+        if not self.allow_delete_item:
+            return method_not_allowed()
+    
     def delete_list(self):
-        pass
+        if not self.allow_delete_list:
+            return method_not_allowed()
 
