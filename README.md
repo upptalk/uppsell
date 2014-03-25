@@ -19,7 +19,7 @@ admin for managing them.
 
 ### Payment workflow diagram
 
-![Payment States](doc/paymentr_states.png "Payment States")
+![Payment States](doc/payment_states.png "Payment States")
 
 ## Legal
 - License: [MIT](LICENSE.txt)
