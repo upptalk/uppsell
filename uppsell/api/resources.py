@@ -9,31 +9,14 @@ from uppsell.resources import ModelResource
 class ProductResource(ModelResource):
     model = models.Product
 
-class _ProductsResource(Resource):
-    def get(self):
-        return ok("products", result=Product.objects.all())
-    def post(self):
-        pass
+class StoresResource(ModelResource):
+    model = models.Store
 
-class _ProductResource(Resource):
-    def get(self, product_id=None):
-        try:
-            return ok("products", result=Product.objects.get(pk=product_id))
-        except ObjectDoesNotExist:
-            return not_found("Product does not exist")
+class CustomerResource(ModelResource):
+    model = models.Customer
 
-class StoresResource(Resource):
-    
-    def get(self):
-        return ok("stores", result=Store.objects.all())
-    
-    def post(self):
-        try:
-            store = model_from_request(Store)
-            store.save()
-            return created(message="Store was created", result=store)
-        except IntegrityError as e:
-            return conflict(message=e.args)
+class CustomerAddressResource(ModelResource):
+    model = models.Address
 
 class StoreResource(Resource):
     def get(self, store_id=None):

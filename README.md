@@ -24,3 +24,8 @@ admin for managing them.
 ## Legal
 - License: [MIT](LICENSE.txt)
 - Copyright: Copyright © 2014 [yuilop SL](http://yuilop.com)
+
+## Credits
+
+- Adam Hayward <adam (at) upptalk /dot/ com>
+- Francesc Vendrell <francesc (at) upptalk /dot/ com>
