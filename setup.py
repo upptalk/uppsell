@@ -1,5 +1,5 @@
 import os
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name = "uppsell",
@@ -11,7 +11,7 @@ setup(
     license = "MIT",
     keywords = "example documentation tutorial",
     url = "https://github.com/upptalk/uppsell",
-    packages=['uppsell'],
+    packages = find_packages(exclude="django_site"),
     long_description="See https://github.com/upptalk/uppsell",
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
