@@ -4,6 +4,7 @@ from django.db.models.base import ModelBase
 from django.db.models.query import QuerySet, ValuesQuerySet
 from django.db.models.fields.related import ManyToManyField
 from datetime import datetime
+from decimal import Decimal
 
 def model_to_dict(instance):
     """Like django.forms.models.model_to_dict, but returns everything
@@ -27,5 +28,7 @@ class ApiJSONEncoder(FlaskJSONEncoder):
             return [model_to_dict(m) for m in obj]
         elif isinstance(obj, datetime):
             return obj.isoformat("T")
+        elif isinstance(obj, Decimal):
+            return float(obj)
         return FlaskJSONEncoder.default(self, obj)
 

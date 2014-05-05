@@ -9,7 +9,7 @@ class ModelResource(Resource):
     fields = ()
     list_display = ()
     id = 'pk'
-    required_params = ['customer',]
+    required_params = []
     allow_get_item = True
     allow_get_list = True
     allow_put_item = True

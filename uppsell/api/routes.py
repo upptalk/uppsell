@@ -4,7 +4,7 @@ ROUTES = (
     (resources.CustomerResource, '/customers', '/customers/<id>'),
     (resources.CustomerAddressResource, '/customers/<customer>/addresses', '/customers/<customer>/addresses/<id>'),
     (resources.ProductResource, '/products', '/products/<sku>'),
-    #(resources.ProductResource),
-    (resources.StoresResource, '/stores'),
-    (resources.StoreResource, '/stores/<store_id>'),
+    (resources.StoresResource, '/stores', '/stores/<code>'),
+    (resources.ListingResource, '/stores/<store_code>/products'),
+    (resources.OrderResource, '/orders', '/orders/<id>'),
 )

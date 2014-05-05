@@ -131,11 +131,11 @@ class Address(models.Model):
     type = models.CharField("Address type", max_length=10, choices=ADDRESS_TYPES)
     customer = models.ForeignKey(Customer)
     line1 = models.CharField("Address line 1", max_length=255)
-    line2 = models.CharField("Address line 2", max_length=255, blank=True, null=True)
-    line3 = models.CharField("Address line 3", max_length=255, blank=True, null=True)
+    line2 = models.CharField("Address line 2", max_length=255, blank=True)
+    line3 = models.CharField("Address line 3", max_length=255, blank=True)
     city = models.CharField("City", max_length=255)
-    zip = models.CharField("Zip or Post Code", max_length=255, blank=True, null=True)
-    province= models.CharField("State, Province or County", max_length=255, blank=True, null=True)
+    zip = models.CharField("Zip or Post Code", max_length=255, blank=True)
+    province = models.CharField("State, Province or County", max_length=255, blank=True)
     country = models.CharField("Country", max_length=255)
     country_code = models.CharField("Country Code", max_length=3)
     other = models.CharField("Other Details", max_length=255)
@@ -199,6 +199,7 @@ class ProductGroup(models.Model):
 class Product(models.Model):
     group = models.ForeignKey(ProductGroup)
     sku = models.CharField(max_length=200)
+    provisioning_codes = models.CharField(max_length=255, blank=True, null=True)
     name = models.CharField(max_length=200)
     title = models.CharField(max_length=200)
     subtitle = models.CharField(max_length=200)
@@ -228,17 +229,33 @@ class ProductCode(models.Model):
     def __unicode__(self):
         return u"<%s %s>" % (self.type, self.code)
 
+class ListingManager(models.Manager):
+    #_override = ('name', 'title', 'subtitle', 'description')
+    def store_listings(self, store):
+        from django.db import connection
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT l.*, p.* from listings l join product p on p.id=l.product_id
+            WHERE store_id = %s""" % store.id)
+        for row in cursor.fetchall():
+            p = self.model(id=row[0], question=row[1], poll_date=row[2])
+            p.num_responses = row[3]
+            result_list.append(p)
+        return result_list
+
 class Listing(models.Model):
     store = models.ForeignKey(Store)
     product = models.ForeignKey(Product)
     state = models.CharField("Status", max_length=10, choices=PRODUCT_STATES)
-    price = models.DecimalField("Price", max_digits=8, decimal_places=2, blank=False, null=False)
+    price = models.DecimalField("Price", max_digits=8, decimal_places=2, blank=False, null=False, default=0.0)
     sales_tax_rate = models.FloatField("Sales Tax Rate", null=True)
     name = models.CharField("Name", max_length=200, blank=True, null=True)
     title = models.CharField("Title", max_length=200, blank=True, null=True)
     subtitle = models.CharField("Subtitle", max_length=200, blank=True, null=True)
-    description = models.CharField("Desacription", max_length=10000, blank=True, null=True)
+    description = models.CharField("Description", max_length=10000, blank=True, null=True)
     
+    #objects = ListingManager()
+
     class Meta:
         db_table = 'listings'
         verbose_name = 'Listing'

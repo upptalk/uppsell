@@ -24,18 +24,6 @@ def post_transition_handler(callback, on_key, on_model, on_state="__all__", on_t
     post_transition.connect(wrapper)
     return wrapper
 
-def transition_callback(callback):
-    """
-    Decorator to check that a user is logged in.
-    """
-    def wrapper(request, *args, **kwargs):
-        if not request.session.get("user", None):
-            return HttpResponseRedirect("/activate/")
-        return controller(request, *args,  **kwargs)
-    wrapper.__doc__ = controller.__doc__
-    wrapper.__name__ = controller.__name__  
-    return wrapper
-
 class CancelTransition(Exception):
     """Cancel the current transition"""
     pass
@@ -88,13 +76,13 @@ class Workflow(object):
         if self._states.get(state) is None:
             self._states[state] = State(self, state)
         return self._states[state]
-
+    
     def set_transitions(self, transitions):
         self._states = {}
         for (transition, start, finish) in transitions:
             self.add_transition(transition, start, finish)
         return self
-
+    
     def add_transition(self, transition, start, finish):
         self.add_state(start).add_transition(transition, self.add_state(finish))
         return self
@@ -105,7 +93,7 @@ class Workflow(object):
     @property
     def available(self):
         return self.state.transitions
-
+    
     def do(self, transition):
         if not self.can(transition):
             raise BadTransition, u"Model %s in state %s cannot apply transition %s"\

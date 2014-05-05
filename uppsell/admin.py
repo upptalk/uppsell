@@ -7,7 +7,6 @@ from django.http import HttpResponse, HttpResponseRedirect
 from uppsell import models
 from uppsell.workflow import BadTransition
 
-
 def order_event_handler(type, event, event_name=None):
     if event_name is None:
         event_name = event
@@ -46,7 +45,8 @@ class CustomerOrderInline(admin.TabularInline):
 # ====================================================================================
 
 class ListingAdmin(admin.ModelAdmin):
-        fields = ('store', 'product', "sales_tax_rate", "name", "title", "subtitle", "description")
+        fields = ('store', 'product', "name", "title",\
+            "subtitle", "description", "sales_tax_rate", "price")
 
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ('username', 'show_name', 'email', 'created_at')
