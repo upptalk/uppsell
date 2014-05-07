@@ -5,8 +5,7 @@ from django.forms.models import model_to_dict
 from uppsell.util import to_rfc2822
 from uppsell.util.responses import *
 from uppsell import models
-#from uppsell.resources import ModelResource
-from uppsell.djresources import Resource, ModelResource
+from uppsell.resources import Resource, ModelResource
 from uppsell.response import JsonResponse
 
 def get_listings(store):
