@@ -4,7 +4,7 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db.models.signals import post_save
 from workflow import Workflow, BadTransition, pre_transition_handler, \
         post_transition_handler
-from uppsell.exceptions import CouponLimitError
+from .exceptions import CouponLimitError
 
 ADDRESS_TYPES = ( # (type, description)
     ('billing', 'Billing'),

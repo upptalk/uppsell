@@ -46,7 +46,7 @@ class CustomerOrderInline(admin.TabularInline):
 
 class ListingAdmin(admin.ModelAdmin):
         fields = ('store', 'product', "name", "title",\
-            "subtitle", "description", "sales_tax_rate", "price")
+            "subtitle", "description", "sales_tax_rate", "price", "shipping")
 
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ('username', 'show_name', 'email', 'created_at')

@@ -8,6 +8,8 @@ from uppsell.util.responses import *
 from uppsell import models
 from uppsell.resources import ModelResource
 
+parser = reqparse.RequestParser()
+
 def get_listings(store):
     for listing in models.Listing.objects.filter(store=store):
         prod, listing_dict = {}, model_to_dict(listing)
@@ -54,9 +56,10 @@ class ListingResource(ModelResource):
     
     def _format_listing(self, store, listing):
         prod_dict, listing_dict = model_to_dict(listing.product), model_to_dict(listing)
+        prod_dict['price'] = listing_dict['price']
+        prod_dict['shipping'] = listing_dict['shipping']
+        prod_dict["sales_tax_rate"] = store.sales_tax_rate
         for k in ('name', 'title', 'subtitle', 'description'):
-            prod_dict['price'] = listing_dict['price']
-            prod_dict["sales_tax_rate"] = store.sales_tax_rate
             if listing_dict[k].strip():
                 prod_dict[k] = listing_dict[k]
             if listing_dict["sales_tax_rate"]:
@@ -84,8 +87,25 @@ class ListingResource(ModelResource):
 
 class OrderResource(ModelResource):
     model = models.Order
+    
+    def post_list(self, *args, **kwargs):
+        """Create a new order"""
+        args = parser.parse_args()
+        return ok(self.label, result={"args": args})
 
-class OrderActionResource(Resource):
+class OrderItemResource(ModelResource):
+    model = models.Order
+    
+    def post_list(self, *args, **kwargs):
+        """Create a new order"""
+        pass
+
+class OrderEventResource(Resource):
+    required_params = ['id'] # id=Order.id
+    
+    def get_list(self, *args, **kwargs):
+        pass
+    
     def post(self, order_id):
         event = self.POST.event
         order = Order.objects.get(pk=order_id)
@@ -95,14 +115,4 @@ class OrderActionResource(Resource):
         except BadTransition:
             return bad_request()
 
-# curl -D- -X POST http://api/order/transition -d"transition=cancel"
-class PaymentActionResource(Resource):
-    def post(self, order_id):
-        event = self.POST.event
-        order = Order.objects.get(pk=order_id)
-        try:
-            order.payment_workflow.do_transition(transition)
-            return ok()
-        except BadTransition:
-            return bad_request()
 

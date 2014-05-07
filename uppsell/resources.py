@@ -1,5 +1,7 @@
-from flask.ext.restful import Resource
+from flask.ext.restful import reqparse, abort, Resource
 from uppsell.util.responses import *
+
+parser = reqparse.RequestParser()
 
 class ModelResource(Resource):
 

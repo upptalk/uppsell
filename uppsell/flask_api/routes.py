@@ -9,4 +9,6 @@ ROUTES = (
     (resources.CartResource, '/stores/<store_code>/carts', '/stores/<store_code>/carts/<key>'),
     (resources.CartItemResource, '/stores/<store_code>/carts/<key>/items', '/stores/<store_code>/carts/<key>/items/<sku>'),
     (resources.OrderResource, '/orders', '/orders/<id>'),
+    (resources.OrderItemResource, '/orders/<id>/items', '/orders/<id>/items/<sku>'),
+    (resources.OrderEventResource, '/orders/<id>/items/events'),
 )

@@ -33,7 +33,7 @@ for installed_app in settings.INSTALLED_APPS:
     try:
         modname = "%s.api.routes"%installed_app
         module = __import__(modname, globals(), locals(), [], -1)
-        for route in module.api.routes.ROUTES:
+        for route in module.flask_api.routes.ROUTES:
             api.add_resource(*route)
     except (ImportError, AttributeError) as e:
         pass
