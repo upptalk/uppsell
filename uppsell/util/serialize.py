@@ -1,4 +1,4 @@
-from flask.json import JSONEncoder as FlaskJSONEncoder
+import json
 from django.db.models import Model
 from django.db.models.base import ModelBase
 from django.db.models.query import QuerySet, ValuesQuerySet
@@ -20,7 +20,7 @@ def model_to_dict(instance):
             data[f.name] = f.value_from_object(instance)
     return data
 
-class ApiJSONEncoder(FlaskJSONEncoder):
+class UppsellJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, (Model, ModelBase)):
             return model_to_dict(obj)

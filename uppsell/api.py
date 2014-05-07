@@ -9,11 +9,16 @@ class UppsellApi(object):
         self.name = name
         self.app_name = app_name
     
-    def add_resource(resource):
-        pass
+    def add_resource(self, resource, *args):
+        for url in args:
+            self._resources.append((resource, url))
     
-    def get_urls():
-        pass
+    def get_urls(self):
+        from django.conf.urls import patterns, url, include
+        urlpatterns = patterns('')
+        for resource, route in self._resources:
+            urlpatterns += patterns('', url(route, resource.as_view()))
+        return urlpatterns
 
     @property
     def urls(self):

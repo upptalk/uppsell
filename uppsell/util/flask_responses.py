@@ -1,4 +1,7 @@
-from uppsell.response import JsonResponse
+
+#====================================================================================
+# DEPRECATED
+#====================================================================================
 
 __all__ = ('error', 'ok', 'created', 'accepted', 'bad_request', 'unauthorized',
         'forbidden', 'not_found', 'method_not_allowed', 'conflict',
@@ -11,11 +14,7 @@ def response(code=200, headers = [], *args, **kwargs):
     """Format a generic response from a resource in format:
     (dict:json-response-body, int:http-response-code)
     """
-    print "** headers", headers
-    response = JsonResponse(kwargs, status=code)
-    for header, val in  headers:
-        response[header] = val
-    return response
+    return kwargs, code, headers
 
 def error(code, message, *args, **kwargs):
     """Generic error response"""

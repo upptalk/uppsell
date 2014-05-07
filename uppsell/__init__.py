@@ -1,6 +1,4 @@
-import uppsell.api as _api
-
-print _api, dir(_api)
+from uppsell.api import api
 
 _registry = []
 
@@ -23,11 +21,11 @@ def autodiscover():
         # Attempt to import the app's admin module.
         try:
             before_import_registry = copy.copy(api._resources)
-            if app == "uppsell":
-                import_module('uppsell.base' % app)
-            else:
-                import_module('%s.uppsell' % app)
+            if app == "uppsell": submod = 'uppsell.base'
+            else: submod = '%s.uppsell' % app
+            import_module(submod)
         except:
+            if app == "uppsell": raise
             # Reset the model registry to the state before the last import as
             # this import will have to reoccur on the next request and this
             # could raise NotRegistered and AlreadyRegistered exceptions
