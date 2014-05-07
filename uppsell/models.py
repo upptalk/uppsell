@@ -248,6 +248,7 @@ class Listing(models.Model):
     product = models.ForeignKey(Product)
     state = models.CharField("Status", max_length=10, choices=PRODUCT_STATES)
     price = models.DecimalField("Price", max_digits=8, decimal_places=2, blank=False, null=False, default=0.0)
+    shipping = models.DecimalField("Shipping", max_digits=8, decimal_places=2, blank=False, null=False, default=0.0)
     sales_tax_rate = models.FloatField("Sales Tax Rate", null=True)
     name = models.CharField("Name", max_length=200, blank=True, null=True)
     title = models.CharField("Title", max_length=200, blank=True, null=True)
@@ -265,8 +266,9 @@ class Listing(models.Model):
         return self.product.name
 
 class Cart(models.Model):
+    key = models.CharField("Key", max_length=40)
     store = models.ForeignKey(Store)
-    customer = models.ForeignKey(Listing)
+    customer = models.ForeignKey(Customer, null=True)
     created_at = models.DateTimeField('date created', auto_now_add=True)
     updated_at = models.DateTimeField('date modified', auto_now=True)
     
