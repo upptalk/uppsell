@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError
 from django.forms.models import model_to_dict
@@ -26,27 +27,60 @@ class CustomerResource(ModelResource):
 class CustomerAddressResource(ModelResource):
     model = models.Address
 
+class CartResource(ModelResource):
+    required_params = ['store_code']
+    model = models.Cart
+    
+    def get_list(self, *args, **kwargs):
+        return not_found()
+    
+    def get_item(self, *args, **kwargs):
+        try:
+            store = models.Store.objects.get(code=kwargs["store_code"])
+        except ObjectDoesNotExist:
+            return not_found()
+        cart = self.model.get(store=store, key=kwargs["key"])
+        return ok(self.label, result=cart, items=models.CartItem.find(cart=cart), meta=self._meta)
+
+class CartItemResource(ModelResource):
+    required_params = ['key']
+    model = models.Cart
+    def get_list(self, *args, **kwargs):
+        return notfound()
+
 class ListingResource(ModelResource):
     required_params = ['store_code']
     model = models.Listing
+    
+    def _format_listing(self, store, listing):
+        prod_dict, listing_dict = model_to_dict(listing.product), model_to_dict(listing)
+        for k in ('name', 'title', 'subtitle', 'description'):
+            prod_dict['price'] = listing_dict['price']
+            prod_dict["sales_tax_rate"] = store.sales_tax_rate
+            if listing_dict[k].strip():
+                prod_dict[k] = listing_dict[k]
+            if listing_dict["sales_tax_rate"]:
+                prod_dict["sales_tax_rate"] = listing_dict["sales_tax_rate"]
+        return prod_dict
+
+    def get_item(self, *args, **kwargs):
+        try:
+            store = models.Store.objects.get(code=kwargs["store_code"])
+            listing = self.model.objects.get(store=store, product__sku=kwargs["sku"])
+        except ObjectDoesNotExist:
+            return not_found()
+        return ok(self.label, result=self._format_listing(store, listing))
 
     def get_list(self, *args, **kwargs):
         try:
             store = models.Store.objects.get(code=kwargs["store_code"])
         except ObjectDoesNotExist:
             return not_found()
-        listings = []
-        for listing in self.model.objects.filter(store=store):
-            prod_dict, listing_dict = model_to_dict(listing.product), model_to_dict(listing)
-            for k in ('name', 'title', 'subtitle', 'description'):
-                prod_dict['price'] = listing_dict['price']
-                prod_dict["sales_tax_rate"] = store.sales_tax_rate
-                if listing_dict[k].strip():
-                    prod_dict[k] = listing_dict[k]
-                if listing_dict["sales_tax_rate"]:
-                   prod_dict["sales_tax_rate"] = listing_dict["sales_tax_rate"]
-            listings.append(prod_dict)
-        return ok(self.label, result=listings, meta=self._meta)
+        def get_listings(store):
+            for listing in self.model.objects.filter(store=store):
+                formatted = self._format_listing(store, listing)
+                yield formatted["sku"], formatted
+        return ok(self.label, result=OrderedDict(get_listings(store)), meta=self._meta)
 
 class OrderResource(ModelResource):
     model = models.Order
