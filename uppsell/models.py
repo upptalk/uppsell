@@ -272,10 +272,16 @@ class Cart(models.Model):
     created_at = models.DateTimeField('date created', auto_now_add=True)
     updated_at = models.DateTimeField('date modified', auto_now=True)
     
+    
     class Meta:
         db_table = 'carts'
         verbose_name = 'Shopping cart'
         verbose_name_plural = 'Shopping carts'
+    
+    def _get_items(self):
+        return dict([(item.sku, item) for item in CartItem.objects.filter(cart=self)])
+    
+    items = property(_get_items)
 
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart)

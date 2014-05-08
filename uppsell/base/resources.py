@@ -7,6 +7,7 @@ from uppsell.util.responses import *
 from uppsell import models
 from uppsell.resources import Resource, ModelResource
 from uppsell.response import JsonResponse
+from uppsell.util.serialize import model_to_dict
 
 def get_listings(store):
     for listing in models.Listing.objects.filter(store=store):
@@ -17,7 +18,7 @@ def get_listings(store):
 class ProductResource(ModelResource):
     model = models.Product
 
-class StoresResource(ModelResource):
+class StoreResource(ModelResource):
     model = models.Store
 
 class CustomerResource(ModelResource):
@@ -33,22 +34,28 @@ class CartResource(ModelResource):
     required_params = ['store_code']
     model = models.Cart
     
-    def get_list(self, *args, **kwargs):
+    def get_list(self, request, *args, **kwargs):
         return not_found()
     
-    def get_item(self, *args, **kwargs):
+    def get_item(self, request, *args, **kwargs):
         try:
-            store = models.Store.objects.get(code=kwargs["store_code"])
+            cart = self.model.objects.get(store__code=kwargs["store_code"], key=kwargs["key"])
         except ObjectDoesNotExist:
             return not_found()
-        cart = self.model.get(store=store, key=kwargs["key"])
-        return ok(self.label, result=cart, items=models.CartItem.find(cart=cart), meta=self._meta)
+        result = model_to_dict(cart)
+        result["items"] = cart.items
+        return ok(self.label, result=result, meta=self._meta)
 
 class CartItemResource(ModelResource):
-    required_params = ['key']
-    model = models.Cart
-    def get_list(self, *args, **kwargs):
+    required_params = ['store_code', 'key']
+    model = models.CartItem
+    
+    def get_list(self, request, *args, **kwargs):
         return notfound()
+    
+    def post_list(self, request, *args, **kwargs):
+        cart = models.Cart.objects.get(store__code=kwargs["store_code"], key=kwargs["key"])
+        print cart
 
 class ListingResource(ModelResource):
     required_params = ['store_code']
@@ -88,7 +95,10 @@ class ListingResource(ModelResource):
 class OrderResource(ModelResource):
     model = models.Order
     
-    def post_list(self, *args, **kwargs):
+    def get_item(self, request, id):
+        return super(OrderResource, self).get_item(request, id)
+
+    def post_list(self, request, *args, **kwargs):
         """Create a new order"""
         args = parser.parse_args()
         return ok(self.label, result={"args": args})
@@ -96,14 +106,14 @@ class OrderResource(ModelResource):
 class OrderItemResource(ModelResource):
     model = models.Order
     
-    def post_list(self, *args, **kwargs):
+    def post_list(self, request, *args, **kwargs):
         """Create a new order"""
         pass
 
 class OrderEventResource(Resource):
     required_params = ['id'] # id=Order.id
     
-    def get_list(self, *args, **kwargs):
+    def get_list(self, request, *args, **kwargs):
         pass
     
     def post(self, order_id):

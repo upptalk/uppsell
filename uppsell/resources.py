@@ -1,4 +1,5 @@
 from django.views.generic import View
+from uppsell.util.responses import *
 
 class Resource(View):
     pass
@@ -33,54 +34,57 @@ class ModelResource(Resource):
             'verbose_name_plural': unicode(self.model._meta.verbose_name_plural),
         }
 
-    def get(self, *args, **kwargs):
+    def get(self, request, *args, **kwargs):
         if kwargs.keys() == self.required_params:
-            return self.get_list(*args, **kwargs)
-        return self.get_item(*args, **kwargs)
-    def put(self, *args, **kwargs):
-        if kwargs == {}:
-            return self.put_list(*args, **kwargs)
-        return self.put_item(*args, **kwargs)
-    def post(self, *args, **kwargs):
-        if kwargs == {}:
-            return self.post_list(*args, **kwargs)
-        return self.post_item(*args, **kwargs)
-    def delete(self, *args, **kwargs):
-        if kwargs == {}:
-            return self.delete_list(*args, **kwargs)
-        return self.delete_item(*args, **kwargs)
+            return self.get_list(request, *args, **kwargs)
+        return self.get_item(request, *args, **kwargs)
     
-    def get_item(self, *args, **kwargs):
+    def put(self, request, *args, **kwargs):
+        if kwargs == {}:
+            return self.put_list(request, *args, **kwargs)
+        return self.put_item(request, *args, **kwargs)
+    
+    def post(self, request, *args, **kwargs):
+        if kwargs == {}:
+            return self.post_list(request, *args, **kwargs)
+        return self.post_item(request, *args, **kwargs)
+    
+    def delete(self, request, *args, **kwargs):
+        if kwargs == {}:
+            return self.delete_list(request, *args, **kwargs)
+        return self.delete_item(request, *args, **kwargs)
+    
+    def get_item(self, request, *args, **kwargs):
         if not self.allow_get_item:
             return method_not_allowed()
         return ok(self.label, result=self.model.objects.get(**kwargs))
     
-    def get_list(self, *args, **kwargs):
+    def get_list(self, request, *args, **kwargs):
         if not self.allow_get_list:
             return method_not_allowed()
         return ok(self.label, result=self.model.objects.all(), meta=self._meta)
     
-    def put_item(self, *args, **kwargs):
+    def put_item(self, request, *args, **kwargs):
         if not self.allow_put_item:
             return method_not_allowed()
     
-    def put_list(self, *args, **kwargs):
+    def put_list(self, request, *args, **kwargs):
         if not self.allow_put_item:
             return method_not_allowed()
     
-    def post_item(self, *args, **kwargs):
+    def post_item(self, request, *args, **kwargs):
         if not self.allow_post_item:
             return method_not_allowed()
     
-    def post_list(self, *args, **kwargs):
+    def post_list(self, request, *args, **kwargs):
         if not self.allow_post_list:
             return method_not_allowed()
     
-    def delete_item(self, *args, **kwargs):
+    def delete_item(self, request, *args, **kwargs):
         if not self.allow_delete_item:
             return method_not_allowed()
     
-    def delete_list(self, *args, **kwargs):
+    def delete_list(self, request, *args, **kwargs):
         if not self.allow_delete_list:
             return method_not_allowed()
 

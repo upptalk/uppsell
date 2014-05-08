@@ -11,7 +11,6 @@ def response(code=200, headers = [], *args, **kwargs):
     """Format a generic response from a resource in format:
     (dict:json-response-body, int:http-response-code)
     """
-    print "** headers", headers
     response = JsonResponse(kwargs, status=code)
     for header, val in  headers:
         response[header] = val
