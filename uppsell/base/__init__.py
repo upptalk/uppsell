@@ -25,7 +25,7 @@ uppsell.api.add_resource(resources.CartResource,
     r'stores/(?P<store_code>[^/]*)/carts/(?P<key>[^/]*)$')
 uppsell.api.add_resource(resources.CartItemResource,
     r'stores/(?P<store_code>[^/]*)/carts/(?P<key>[^/]*)/items$',
-    r'stores/(?P<store_code>[^/]*)/carts/(?P<key>[^/]*)/items/<sku>$')
+    r'stores/(?P<store_code>[^/]*)/carts/(?P<key>[^/]*)/items/(?P<sku>[^/]*)$')
 
 uppsell.api.add_resource(resources.OrderResource,
     r'orders$',

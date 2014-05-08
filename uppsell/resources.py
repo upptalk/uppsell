@@ -1,5 +1,7 @@
 from django.views.generic import View
 from uppsell.util.responses import *
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 
 class Resource(View):
     pass
@@ -34,8 +36,15 @@ class ModelResource(Resource):
             'verbose_name_plural': unicode(self.model._meta.verbose_name_plural),
         }
 
+    @method_decorator(csrf_exempt)
+    def dispatch(self, *args, **kwargs):
+        """The dispatch() method is decorated to make it exempt from 
+        CSRF validation"""
+        return super(ModelResource, self).dispatch(*args, **kwargs)
+
     def get(self, request, *args, **kwargs):
-        if kwargs.keys() == self.required_params:
+        print self, kwargs
+        if sorted(kwargs.keys()) == sorted(self.required_params):
             return self.get_list(request, *args, **kwargs)
         return self.get_item(request, *args, **kwargs)
     
@@ -45,12 +54,12 @@ class ModelResource(Resource):
         return self.put_item(request, *args, **kwargs)
     
     def post(self, request, *args, **kwargs):
-        if kwargs == {}:
+        if sorted(kwargs.keys()) == sorted(self.required_params):
             return self.post_list(request, *args, **kwargs)
         return self.post_item(request, *args, **kwargs)
     
     def delete(self, request, *args, **kwargs):
-        if kwargs == {}:
+        if sorted(kwargs.keys()) == sorted(self.required_params):
             return self.delete_list(request, *args, **kwargs)
         return self.delete_item(request, *args, **kwargs)
     

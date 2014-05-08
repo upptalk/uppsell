@@ -33,6 +33,7 @@ class CustomerAddressResource(ModelResource):
 class CartResource(ModelResource):
     required_params = ['store_code']
     model = models.Cart
+    allow_post_item = True
     
     def get_list(self, request, *args, **kwargs):
         return not_found()
@@ -44,18 +45,38 @@ class CartResource(ModelResource):
             return not_found()
         result = model_to_dict(cart)
         result["items"] = cart.items
-        return ok(self.label, result=result, meta=self._meta)
+        return ok(self.label, result=result, totals=cart.totals, meta=self._meta)
 
+    def post_item(self, request, *args, **kwargs):
+        try:
+            cart = models.Cart.objects.get(store__code=kwargs["store_code"], key=kwargs["key"])
+        except ObjectDoesNotExist:
+            cart = models.Cart.objects.create(store__code=kwargs["store_code"], key=kwargs["key"])
+        sku, qty = request.POST.get("sku"), int(request.POST.get("qty", 1))
+        if not sku:
+            return bad_request("No SKU in request")
+        try:
+            product = models.Listing.objects.get(store__code=kwargs["store_code"], product__sku=sku)
+        except ObjectDoesNotExist:
+            return bad_request("SKU '%s' does not exist in store %s" % (sku, kwargs["store_code"]))
+        item = cart.add_item(product, qty)
+        return created(self.label, result=cart, items=cart.items)
+    
 class CartItemResource(ModelResource):
-    required_params = ['store_code', 'key']
+    required_params = ['key', 'store_code']
     model = models.CartItem
     
     def get_list(self, request, *args, **kwargs):
-        return notfound()
-    
-    def post_list(self, request, *args, **kwargs):
-        cart = models.Cart.objects.get(store__code=kwargs["store_code"], key=kwargs["key"])
-        print cart
+        return not_found()
+
+    def delete_item(self, request, *args, **kwargs):
+        try:
+            cart = models.Cart.objects.get(store__code=kwargs["store_code"], key=kwargs["key"])
+            product = models.Listing.objects.get(store__code=kwargs["store_code"], product__sku=kwargs["sku"])
+            cart.del_item(product)
+        except ObjectDoesNotExist:
+            return not_found()
+        return ok()
 
 class ListingResource(ModelResource):
     required_params = ['store_code']

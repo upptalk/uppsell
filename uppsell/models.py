@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.db import models
 from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
@@ -272,16 +273,48 @@ class Cart(models.Model):
     created_at = models.DateTimeField('date created', auto_now_add=True)
     updated_at = models.DateTimeField('date modified', auto_now=True)
     
-    
     class Meta:
         db_table = 'carts'
         verbose_name = 'Shopping cart'
         verbose_name_plural = 'Shopping carts'
     
-    def _get_items(self):
-        return dict([(item.sku, item) for item in CartItem.objects.filter(cart=self)])
+    @property
+    def totals(self):
+        shipping_total, sub_total, tax_total, total_total = 0, 0, 0, 0
+        for sku, item in self.items.items():
+            prod = item.product
+            tax = prod.price * Decimal(prod.sales_tax_rate)
+            cost = prod.price + tax
+            row_total = cost * item.quantity
+            shipping_total += prod.shipping
+            sub_total += prod.price
+            tax_total += tax
+            total_total = total_total + cost + prod.shipping
+        return {"shipping_total": shipping_total,
+                "sub_total": sub_total,
+                "tax_total": tax_total,
+                "total_total": total_total}
+
+    @property
+    def items(self):
+        return dict([(item.product.product.sku, item) for item in CartItem.objects.filter(cart=self)])
     
-    items = property(_get_items)
+    def add_item(self, product, quantity = 1):
+        try:
+            item = CartItem.objects.get(cart=self, product=product)
+            item.quantity += quantity
+            item.save()
+        except ObjectDoesNotExist:
+            item = CartItem.objects.create(cart=self, product=product, quantity=quantity)
+        return item
+ 
+    def del_item(self, product):
+        try:
+            item = CartItem.objects.get(cart=self, product=product)
+            item.delete()
+        except ObjectDoesNotExist:
+            raise
+        
 
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart)
@@ -292,6 +325,7 @@ class CartItem(models.Model):
         db_table = 'cart_items'
         verbose_name = 'Shopping cart item'
         verbose_name_plural = 'Shopping cart items'
+        unique_together = ('cart', 'product')
 
 class Coupon(models.Model):
     RELATIONS = (('individual', 'Individual'),
