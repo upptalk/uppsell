@@ -110,30 +110,6 @@ ORDER_EVENT_TYPES = (
     ('fraud', 'Fraud Event'),
 )
 
-"""
-class VirtualField(Field):
-    property = None
-    def __init__(self, *args, **kwargs):
-        self.managed = False
-        kwargs['blank'] = True
-        kwargs['editable'] = False
-        kwargs['db_column'] = None
-        self.property = kwargs.get('property')
-        del(kwargs['property'])
-        Field.__init__(self, *args, **kwargs)
-        #self.column = None
-    def set_attributes_from_name(self, name):
-        if not self.name:
-            self.name = name
-        self.attname, _ = self.get_attname_column()
-        self.column = None
-        if self.verbose_name is None and self.name:
-            self.verbose_name = self.name.replace('_', ' ')
-    def value_from_object(self, obj):
-        return getattr(obj, self.property)
-    def get_default(self):
-        return None
-"""
 
 class Customer(models.Model):
     username = models.CharField("Username", max_length=30, unique=True)
@@ -156,7 +132,6 @@ class Customer(models.Model):
         return self.username
 
 class Address(models.Model):
-    type = models.CharField("Address type", max_length=10, choices=ADDRESS_TYPES)
     customer = models.ForeignKey(Customer)
     line1 = models.CharField("Address line 1", max_length=255)
     line2 = models.CharField("Address line 2", max_length=255, blank=True)
@@ -453,6 +428,22 @@ class Order(models.Model):
         if self.order_state == "init":
             OrderEvent.objects.create(order=self, action_type="order", event="open")
     
+    @property
+    def totals(self):
+        shipping_total, sub_total, tax_total, total_total = 0, 0, 0, 0
+        for order_item in OrderItem.objects.filter(order=self):
+            listing = order_item.product
+            tax = listing.price * Decimal(listing.tax_rate.rate)
+            cost = listing.price + tax
+            shipping_total += listing.shipping
+            sub_total += listing.price
+            tax_total += tax
+            total_total = total_total + cost + listing.shipping
+        return {"shipping_total": round(shipping_total, 2),
+                "sub_total": round(sub_total, 2),
+                "tax_total": round(tax_total, 2),
+                "total_total": round(total_total, 2)}
+
     @property
     def order_workflow(self, transitions = None):
         if self._order_workflow is None:
