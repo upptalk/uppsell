@@ -3,9 +3,11 @@ from django.db import models
 from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db.models.signals import post_save
+from django.db.models.fields import Field
 from workflow import Workflow, BadTransition, pre_transition_handler, \
         post_transition_handler
 from .exceptions import CouponLimitError
+
 
 ADDRESS_TYPES = ( # (type, description)
     ('billing', 'Billing'),
@@ -93,7 +95,7 @@ PRODUCT_TRANSITIONS = ( # (product_transition, description)
     ('hide', 'Hide'),
     ('show', 'Show'),
 )
-PRODUCT_TRANSITIONS = ( # (transition, state_before, state_after)
+PRODUCT_WORKFLOW = ( # (transition, state_before, state_after)
     ('create', 'init', 'active'),
     ('activate', 'inactive', 'active'),
     ('hide', 'inactive', 'hidden'),
@@ -107,6 +109,31 @@ ORDER_EVENT_TYPES = (
     ('payment', 'Payment  Event'),
     ('fraud', 'Fraud Event'),
 )
+
+"""
+class VirtualField(Field):
+    property = None
+    def __init__(self, *args, **kwargs):
+        self.managed = False
+        kwargs['blank'] = True
+        kwargs['editable'] = False
+        kwargs['db_column'] = None
+        self.property = kwargs.get('property')
+        del(kwargs['property'])
+        Field.__init__(self, *args, **kwargs)
+        #self.column = None
+    def set_attributes_from_name(self, name):
+        if not self.name:
+            self.name = name
+        self.attname, _ = self.get_attname_column()
+        self.column = None
+        if self.verbose_name is None and self.name:
+            self.verbose_name = self.name.replace('_', ' ')
+    def value_from_object(self, obj):
+        return getattr(obj, self.property)
+    def get_default(self):
+        return None
+"""
 
 class Customer(models.Model):
     username = models.CharField("Username", max_length=30, unique=True)
@@ -200,11 +227,13 @@ class ProductGroup(models.Model):
 class Product(models.Model):
     group = models.ForeignKey(ProductGroup)
     sku = models.CharField(max_length=200)
+    shipping = models.BooleanField("Uses shipping")
     provisioning_codes = models.CharField(max_length=255, blank=True, null=True)
     name = models.CharField(max_length=200)
     title = models.CharField(max_length=200)
     subtitle = models.CharField(max_length=200)
     description = models.CharField(max_length=10000)
+    features = models.CharField(max_length=10000, blank=True)
     stock_units = models.FloatField()
     created_at = models.DateTimeField('date created', auto_now_add=True)
     updated_at = models.DateTimeField('date modified', auto_now=True)
@@ -266,6 +295,14 @@ class Listing(models.Model):
     def __unicode__(self):
         return self.product.name
 
+#def api_field(func):
+#    def wrap(model, *args, **kwargs):
+#        try:
+#            model._meta.api_fields.append(func.__name__)
+#        except AttributeError:
+#            model._meta.api_fields = [func.__name__]
+#    return wrap
+
 class Cart(models.Model):
     key = models.CharField("Key", max_length=40)
     store = models.ForeignKey(Store)
@@ -273,11 +310,14 @@ class Cart(models.Model):
     created_at = models.DateTimeField('date created', auto_now_add=True)
     updated_at = models.DateTimeField('date modified', auto_now=True)
     
+#    @property
+#    def hello (self): return "Hello"
+
     class Meta:
         db_table = 'carts'
         verbose_name = 'Shopping cart'
         verbose_name_plural = 'Shopping carts'
-    
+
     @property
     def totals(self):
         shipping_total, sub_total, tax_total, total_total = 0, 0, 0, 0
@@ -307,15 +347,26 @@ class Cart(models.Model):
         except ObjectDoesNotExist:
             item = CartItem.objects.create(cart=self, product=product, quantity=quantity)
         return item
- 
+    
+    def set_quantity(self, product, quantity = 1):
+        if quantity == 0:
+            return self.del_item(product)
+        try:
+            item = CartItem.objects.get(cart=self, product=product)
+            item.quantity = quantity
+            item.save()
+        except ObjectDoesNotExist:
+            item = CartItem.objects.create(cart=self, product=product, quantity=quantity)
+        return item
+    
     def del_item(self, product):
         try:
             item = CartItem.objects.get(cart=self, product=product)
             item.delete()
         except ObjectDoesNotExist:
             raise
+        return item
         
-
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart)
     product = models.ForeignKey(Listing)
