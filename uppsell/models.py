@@ -205,7 +205,6 @@ class Store(models.Model):
     name = models.CharField(max_length=200)
     default_lang = models.CharField(max_length=3)
     default_currency = models.CharField(max_length=3)
-    sales_tax_rate = models.FloatField()
     created_at = models.DateTimeField('date created', auto_now_add=True)
     updated_at = models.DateTimeField('date modifeid',  auto_now=True)
 
@@ -214,6 +213,16 @@ class Store(models.Model):
 
     def __unicode__(self):
         return self.name
+
+class SalesTaxRate(models.Model):
+    store = models.ForeignKey(Store)
+    name = models.CharField(max_length="20")
+    abbreviation = models.CharField(max_length="10")
+    rate = models.FloatField(default=0.0)
+    
+    def __unicode__(self):
+        pct = round(self.rate*100)
+        return "%s%%" % pct
 
 class ProductGroup(models.Model):
     name = models.CharField(max_length=50)
@@ -228,13 +237,14 @@ class Product(models.Model):
     group = models.ForeignKey(ProductGroup)
     sku = models.CharField(max_length=200)
     shipping = models.BooleanField("Uses shipping")
+    has_stock = models.BooleanField("Uses stock control")
     provisioning_codes = models.CharField(max_length=255, blank=True, null=True)
     name = models.CharField(max_length=200)
     title = models.CharField(max_length=200)
     subtitle = models.CharField(max_length=200)
     description = models.CharField(max_length=10000)
-    features = models.CharField(max_length=10000, blank=True)
-    stock_units = models.FloatField()
+    features = models.CharField(max_length=10000, blank=True, null=True)
+    stock_units = models.FloatField("Stock units", default=0.0)
     created_at = models.DateTimeField('date created', auto_now_add=True)
     updated_at = models.DateTimeField('date modified', auto_now=True)
     
@@ -262,13 +272,15 @@ class ProductCode(models.Model):
 class Listing(models.Model):
     store = models.ForeignKey(Store)
     product = models.ForeignKey(Product)
+    tax_rate = models.ForeignKey(SalesTaxRate)
     state = models.CharField("Status", max_length=10, choices=PRODUCT_STATES)
-    price = models.DecimalField("Price", max_digits=8, decimal_places=2, blank=False, null=False, default=0.0)
+    price = models.DecimalField("Net price", max_digits=8, decimal_places=2, blank=False, null=False, default=0.0)
     shipping = models.DecimalField("Shipping", max_digits=8, decimal_places=2, blank=False, null=False, default=0.0)
     name = models.CharField("Name", max_length=200, blank=True, null=True)
     title = models.CharField("Title", max_length=200, blank=True, null=True)
     subtitle = models.CharField("Subtitle", max_length=200, blank=True, null=True)
     description = models.CharField("Description", max_length=10000, blank=True, null=True)
+    features = models.CharField(max_length=10000, blank=True, null=True)
     
     class Meta:
         db_table = 'listings'
@@ -424,8 +436,6 @@ class Order(models.Model):
     shipping_address = models.ForeignKey(Address, related_name="shipping_address", null=True, blank=True)
     billing_address = models.ForeignKey(Address, related_name="billing_address", null=True, blank=True)
 
-    order_total = models.DecimalField(max_digits=8, decimal_places=2)
-    order_shipping_total = models.DecimalField(max_digits=8, decimal_places=2)
     currency = models.CharField(max_length=3)
 
     payment_made_ts = models.DateTimeField('timestamp payment captured', null=True, blank=True)
