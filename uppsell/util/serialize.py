@@ -1,10 +1,11 @@
-import json
+import json, uuid
+from datetime import datetime, date
+from decimal import Decimal
+from werkzeug.http import http_date
 from django.db.models import Model
 from django.db.models.base import ModelBase
 from django.db.models.query import QuerySet, ValuesQuerySet
 from django.db.models.fields.related import ManyToManyField
-from datetime import datetime
-from decimal import Decimal
 
 def model_to_dict(instance):
     """Like django.forms.models.model_to_dict, but returns everything
@@ -28,7 +29,11 @@ class UppsellJSONEncoder(json.JSONEncoder):
             return [model_to_dict(m) for m in obj]
         elif isinstance(obj, datetime):
             return obj.isoformat("T")
+        elif isinstance(obj, date):
+            return obj.isoformat()
         elif isinstance(obj, Decimal):
             return float(obj)
-        return FlaskJSONEncoder.default(self, obj)
+        elif isinstance(obj, uuid.UUID):
+            return str(obj)
+        return json.JSONEncoder.default(self, obj)
 
