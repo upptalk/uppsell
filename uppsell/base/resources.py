@@ -1,3 +1,5 @@
+import json
+import uuid
 from collections import OrderedDict
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError
@@ -15,6 +17,31 @@ def get_listings(store):
         prod, listing_dict = {}, model_to_dict(listing)
         for k, v in model_to_dict(listing.product).items():
             l, p = listing, listing.product
+
+def make_anonymous_customer():
+    username = "anon_%s" % str(uuid.uuid4().get_hex().upper()[0:25])
+    customer = models.Customer.objects.create(username=username)
+    return customer
+
+def format_listing(store, listing):
+    prod_dict, listing_dict = model_to_dict(listing.product), model_to_dict(listing)
+    prod_dict['price'] = listing_dict['price']
+    prod_dict['shipping'] = listing_dict['shipping']
+    prod_dict['tax_rate'] = listing.tax_rate.rate
+    for k in ('name', 'title', 'subtitle', 'description', 'features'):
+        if listing_dict[k].strip(): prod_dict[k] = listing_dict[k]
+    prod_dict['features'] = [f for f in \
+            [f.strip() for f in prod_dict['features'].split("\n")] if f]
+    return prod_dict
+
+def format_order(order):
+    order_dict = model_to_dict(order)
+    if order.billing_address:
+        order_dict["billing_address"] = model_to_dict(order.billing_address)
+    if order.shipping_address:
+        order_dict["shipping_address"] = model_to_dict(order.shipping_address)
+    order_dict["totals"] = order.totals
+    return order_dict
 
 class ProductResource(ModelResource):
     model = models.Product
@@ -96,25 +123,13 @@ class ListingResource(ModelResource):
     required_params = ['store_code']
     model = models.Listing
     
-    def _format_listing(self, store, listing):
-        prod_dict, listing_dict = model_to_dict(listing.product), model_to_dict(listing)
-        prod_dict['price'] = listing_dict['price']
-        prod_dict['shipping'] = listing_dict['shipping']
-        prod_dict["sales_tax_rate"] = store.sales_tax_rate
-        for k in ('name', 'title', 'subtitle', 'description'):
-            if listing_dict[k].strip():
-                prod_dict[k] = listing_dict[k]
-            if listing_dict["sales_tax_rate"]:
-                prod_dict["sales_tax_rate"] = listing_dict["sales_tax_rate"]
-        return prod_dict
-
     def get_item(self, *args, **kwargs):
         try:
             store = models.Store.objects.get(code=kwargs["store_code"])
             listing = self.model.objects.get(store=store, product__sku=kwargs["sku"])
         except ObjectDoesNotExist:
             return not_found()
-        return ok(self.label, result=self._format_listing(store, listing))
+        return ok(self.label, result=format_listing(store, listing))
 
     def get_list(self, *args, **kwargs):
         try:
@@ -123,7 +138,7 @@ class ListingResource(ModelResource):
             return not_found()
         def get_listings(store):
             for listing in self.model.objects.filter(store=store):
-                formatted = self._format_listing(store, listing)
+                formatted = format_listing(store, listing)
                 yield formatted["sku"], formatted
         return ok(self.label, result=OrderedDict(get_listings(store)), meta=self._meta)
 
@@ -131,19 +146,68 @@ class OrderResource(ModelResource):
     model = models.Order
     
     def get_item(self, request, id):
-        return super(OrderResource, self).get_item(request, id)
+        order = self.model.objects.get(id=id)
+        items = OrderedDict()
+        for item in models.OrderItem.objects.filter(order=order):
+            items[item.product.product.sku] = format_listing(order.store, item.product)
+        result = {
+            "order": format_order(order),
+            "items": items,
+        }
+        return ok(self.label, result=result)
 
     def post_list(self, request, *args, **kwargs):
         """Create a new order"""
-        args = parser.parse_args()
-        return ok(self.label, result={"args": args})
+        try:
+            order_data = json.loads(request.body)
+        except ValueError:
+            return bad_request()
+        store_code = order_data.get("store")
+        try:
+            store = models.Store.objects.get(code=store_code)
+        except ObjectDoesNotExist:
+            return bad_request("Store does not exist")
+        username = order_data.get("customer")
+        if not username:
+            customer = make_anonymous_customer()
+        else:
+            try:
+                customer = models.Customer.objects.get(username=username)
+            except ObjectDoesNotExist:
+                return bad_request("Customer does not exist")
+        order = models.Order.objects.create(store=store, customer=customer, currency=store.default_currency)
+        items = {}
+        for sku, qty in order_data.get("items", {}).items():
+            listing = models.Listing.objects.get(product__sku=sku)
+            models.OrderItem.objects.create(order=order, product=listing)
+            items[sku] = listing
+        return created(self.label, result={
+            "order": format_order(order),
+            "items": items,
+            "customer": customer})
 
 class OrderItemResource(ModelResource):
-    model = models.Order
+    model = models.OrderItem
+    required_params = ['id']
     
     def post_list(self, request, *args, **kwargs):
-        """Create a new order"""
-        pass
+        """Add an item to an order"""
+        order_id = kwargs.get("store_code")
+        try:
+            order = models.Order.objects.get(order_id)
+        except ObjectDoesNotExist:
+            return not_found()
+        sku, qty = request.POST.get("sku"), int(request.POST.get("qty", 1))
+        if not sku:
+            return bad_request("No SKU in request")
+        try:
+            product = models.Listing.objects.get(store__code=store_code, product__sku=sku)
+        except ObjectDoesNotExist:
+            return bad_request("SKU '%s' does not exist in store %s" % (sku, store_code))
+        item = cart.add_item(product, qty)
+        return created(self.label, result=cart, items=cart.items)
+
+
 
 class OrderEventResource(Resource):
     required_params = ['id'] # id=Order.id
