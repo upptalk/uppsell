@@ -1,5 +1,6 @@
 from functools import update_wrapper
 from django.contrib import admin, messages
+from django import forms
 from django.conf.urls import url, patterns
 from django.contrib.admin.util import (unquote, flatten_fieldsets, get_deleted_objects,
     model_format_dict, NestedObjects, lookup_needs_distinct)
@@ -33,6 +34,14 @@ class OrderEventInline(admin.TabularInline):
     fields = ('action_type', 'event', 'state_before', 'state_after', 'comment', 'created_at')
     readonly_fields  = fields
 
+class OrderItemInline(admin.TabularInline):
+    model = models.OrderItem
+    extra = 0
+    can_delete = False
+    fields = ('product','quantity',)
+    readonly_fields  = fields
+
+
 class CustomerOrderInline(admin.TabularInline):
     model = models.Order
     extra = 0
@@ -40,13 +49,34 @@ class CustomerOrderInline(admin.TabularInline):
     #fields = ('action_type', 'event', 'state_before', 'state_after', 'comment', 'created_at')
     #readonly_fields  = fields
 
+
+# ====================================================================================
+# FORMS
+# ====================================================================================
+
+class ListingModelForm(forms.ModelForm):
+    features = forms.CharField(widget=forms.Textarea, required=False)
+    class Meta:
+        model = models.Listing
+    def __init__(self, *args, **kwargs):
+        super(ListingModelForm, self).__init__(*args, **kwargs)
+        if self.instance.id:
+            tax_rates = models.SalesTaxRate.objects.filter(store=self.instance.store)
+            tax_rate_field = self.fields['tax_rate'].widget
+            tax_rate_choices = []
+            tax_rate_choices.append(('', '------'))
+            for tax_rate in tax_rates:
+                tax_rate_choices.append((tax_rate.id, tax_rate))
+                tax_rate_field.choices = tax_rate_choices
+
+class ProductModelForm(forms.ModelForm):
+    features = forms.CharField(widget=forms.Textarea, required=False)
+    class Meta:
+        model = models.Product
+
 # ====================================================================================
 # ADMINS
 # ====================================================================================
-
-class ListingAdmin(admin.ModelAdmin):
-        fields = ('store', 'product', "name", "title",\
-            "subtitle", "description", "sales_tax_rate", "price", "shipping")
 
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ('username', 'show_name', 'email', 'created_at')
@@ -61,9 +91,9 @@ class OrderAdmin(admin.ModelAdmin):
     list_filter = ('store', 'order_state', 'payment_state')
     #actions = order_actions
     fields = ('store', 'customer', "transaction_id", "shipping_address", "billing_address",
-            "order_total", "order_shipping_total", "currency", 'order_state', 'payment_state')
+            "currency", 'order_state', 'payment_state')
     readonly_fields = ('order_state', 'payment_state')
-    inlines = (OrderEventInline,)
+    inlines = (OrderItemInline,OrderEventInline,)
     
     def get_urls(self):
         from django.conf.urls import patterns, url
@@ -119,11 +149,24 @@ class OrderAdmin(admin.ModelAdmin):
     show_customer.allow_tags = True
     show_customer.short_description = "Customer"
 
+class SalesTaxRateAdmin(admin.ModelAdmin):
+    list_display = ('name', 'store', 'abbreviation', 'rate')
+
+class ProductAdmin(admin.ModelAdmin):
+    form = ProductModelForm
+    list_display = ('sku', 'group', 'name')
+
+class ListingAdmin(admin.ModelAdmin):
+    form = ListingModelForm
+    list_display = ('product', 'state', 'price')
+    list_filter = ('state',)
+
 admin.site.register(models.Customer, CustomerAdmin)
 admin.site.register(models.Address)
 admin.site.register(models.Store)
+admin.site.register(models.SalesTaxRate, SalesTaxRateAdmin)
 admin.site.register(models.ProductGroup)
-admin.site.register(models.Product)
+admin.site.register(models.Product, ProductAdmin)
 admin.site.register(models.Listing, ListingAdmin)
 admin.site.register(models.Order, OrderAdmin)
 admin.site.register(models.Invoice)
