@@ -2,6 +2,7 @@ from collections import OrderedDict
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError
 from django.forms.models import model_to_dict
+from django.http import QueryDict
 from uppsell.util import to_rfc2822
 from uppsell.util.responses import *
 from uppsell import models
@@ -48,17 +49,19 @@ class CartResource(ModelResource):
         return ok(self.label, result=result, totals=cart.totals, meta=self._meta)
 
     def post_item(self, request, *args, **kwargs):
+        store_code, key = kwargs.get("store_code"), kwargs.get("key")
         try:
-            cart = models.Cart.objects.get(store__code=kwargs["store_code"], key=kwargs["key"])
+            cart = models.Cart.objects.get(store__code=store_code, key=key)
         except ObjectDoesNotExist:
-            cart = models.Cart.objects.create(store__code=kwargs["store_code"], key=kwargs["key"])
+            # If no shopping cart exists, create one
+            cart = models.Cart.objects.create(store__code=store_code, key=key)
         sku, qty = request.POST.get("sku"), int(request.POST.get("qty", 1))
         if not sku:
             return bad_request("No SKU in request")
         try:
-            product = models.Listing.objects.get(store__code=kwargs["store_code"], product__sku=sku)
+            product = models.Listing.objects.get(store__code=store_code, product__sku=sku)
         except ObjectDoesNotExist:
-            return bad_request("SKU '%s' does not exist in store %s" % (sku, kwargs["store_code"]))
+            return bad_request("SKU '%s' does not exist in store %s" % (sku, store_code))
         item = cart.add_item(product, qty)
         return created(self.label, result=cart, items=cart.items)
     
@@ -68,6 +71,17 @@ class CartItemResource(ModelResource):
     
     def get_list(self, request, *args, **kwargs):
         return not_found()
+    
+    def put_item(self, request, *args, **kwargs):
+        POST = QueryDict(request.body)
+        quantity = int(POST.get("qty", 1))
+        try:
+            cart = models.Cart.objects.get(store__code=kwargs["store_code"], key=kwargs["key"])
+            product = models.Listing.objects.get(store__code=kwargs["store_code"], product__sku=kwargs["sku"])
+            item = cart.set_quantity(product, quantity)
+        except ObjectDoesNotExist:
+            return not_found()
+        return ok(result=item)
 
     def delete_item(self, request, *args, **kwargs):
         try:
