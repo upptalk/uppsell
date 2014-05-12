@@ -437,11 +437,11 @@ class Order(models.Model):
     def totals(self):
         shipping_total, sub_total, tax_total, total_total = 0, 0, 0, 0
         for order_item in OrderItem.objects.filter(order=self):
-            listing = order_item.product
-            tax = listing.price * Decimal(listing.tax_rate.rate)
-            cost = listing.price + tax
-            shipping_total += listing.shipping
-            sub_total += listing.price
+            listing, qty = order_item.product, order_item.quantity
+            tax = listing.price * Decimal(listing.tax_rate.rate) * qty
+            cost = (listing.price * qty) + tax
+            shipping_total += listing.shipping * qty
+            sub_total += listing.price * qty
             tax_total += tax
             total_total = total_total + cost + listing.shipping
         return {"shipping_total": round(shipping_total, 2),

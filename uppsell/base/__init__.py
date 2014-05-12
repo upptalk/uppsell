@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Uppsell's uppsell :)
 import uppsell
 from . import resources

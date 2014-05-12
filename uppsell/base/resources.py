@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import json
 import uuid
 from collections import OrderedDict
@@ -23,7 +24,7 @@ def make_anonymous_customer():
     customer = models.Customer.objects.create(username=username)
     return customer
 
-def format_listing(store, listing):
+def format_listing(store, listing, quantity = None):
     prod_dict, listing_dict = model_to_dict(listing.product), model_to_dict(listing)
     prod_dict['price'] = listing_dict['price']
     prod_dict['shipping'] = listing_dict['shipping']
@@ -32,6 +33,8 @@ def format_listing(store, listing):
         if listing_dict[k].strip(): prod_dict[k] = listing_dict[k]
     prod_dict['features'] = [f for f in \
             [f.strip() for f in prod_dict['features'].split("\n")] if f]
+    if quantity is not None:
+        prod_dict['quantity'] = quantity
     return prod_dict
 
 def format_order(order):
@@ -52,11 +55,20 @@ class StoreResource(ModelResource):
 class CustomerResource(ModelResource):
     required_params = []
     model = models.Customer
-
+    
 class CustomerAddressResource(ModelResource):
     required_params = ['id']
-    id = 'customer_id'
     model = models.Address
+    
+    def post_list(self, request, *args, **kwargs):
+        """Create a new address"""
+        try:
+            customer = models.Customer.objects.get(id=kwargs["id"])
+        except ObjectDoesNotExist:
+            return not_found("Customer does not exist")
+        address_data = dict(request.POST.items() + [("customer", customer)])
+        address = models.Address.objects.create(**address_data)
+        return created(result=address)
 
 class CartResource(ModelResource):
     required_params = ['store_code']
@@ -144,17 +156,28 @@ class ListingResource(ModelResource):
 
 class OrderResource(ModelResource):
     model = models.Order
-    
+    immutable_fields = ('order_state', 'payment_state', 'fraud_state', 'store', 'customer',)
+
     def get_item(self, request, id):
         order = self.model.objects.get(id=id)
         items = OrderedDict()
         for item in models.OrderItem.objects.filter(order=order):
-            items[item.product.product.sku] = format_listing(order.store, item.product)
+            items[item.product.product.sku] = format_listing(order.store, item.product, item.quantity)
         result = {
             "order": format_order(order),
             "items": items,
+            "customer": order.customer,
         }
         return ok(self.label, result=result)
+    
+    def put_item(self, request, id):
+        POST = QueryDict(request.body)
+        order = self.model.objects.get(id=id)
+        for prop, val in POST.items():
+            if prop not in self.immutable_fields:
+                setattr(order, prop, val)
+        order.save()
+        return ok(self.label, result=order)
 
     def post_list(self, request, *args, **kwargs):
         """Create a new order"""
@@ -179,7 +202,7 @@ class OrderResource(ModelResource):
         items = {}
         for sku, qty in order_data.get("items", {}).items():
             listing = models.Listing.objects.get(product__sku=sku)
-            models.OrderItem.objects.create(order=order, product=listing)
+            models.OrderItem.objects.create(order=order, product=listing, quantity=qty)
             items[sku] = listing
         return created(self.label, result={
             "order": format_order(order),
@@ -192,6 +215,7 @@ class OrderItemResource(ModelResource):
     
     def post_list(self, request, *args, **kwargs):
         """Add an item to an order"""
+        ## TODO: revise this method - is it used?
         order_id = kwargs.get("store_code")
         try:
             order = models.Order.objects.get(order_id)
@@ -207,6 +231,22 @@ class OrderItemResource(ModelResource):
         item = cart.add_item(product, qty)
         return created(self.label, result=cart, items=cart.items)
 
+    def put_list(self, request, *args, **kwargs):
+        order_id = kwargs.get("id")
+        try:
+            order = models.Order.objects.get(id=order_id)
+        except ObjectDoesNotExist:
+            return not_found()
+        POST = json.loads(request.body)
+        models.OrderItem.objects.filter(order=order).delete()
+        items = []
+        for sku, qty in POST.get("items", {}).items():
+            try:
+                listing = models.Listing.objects.get(store=order.store, product__sku=sku)
+                items.append(models.OrderItem.objects.create(order=order, product=listing, quantity=qty))
+            except ObjectDoesNotExist:
+                pass
+        return ok(result=items)
 
 
 class OrderEventResource(Resource):

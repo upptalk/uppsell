@@ -1,7 +1,9 @@
+# -*- coding: utf-8 -*-
 from django.views.generic import View
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
+from django.http import QueryDict
 from uppsell.util.responses import *
 
 class Resource(View):
@@ -13,6 +15,7 @@ class ModelResource(Resource):
     
     read_only = ()
     fields = ()
+    immutable_fields = ()
     list_display = ()
     id = 'pk'
     required_params = []
@@ -79,6 +82,16 @@ class ModelResource(Resource):
     def put_item(self, request, *args, **kwargs):
         if not self.allow_put_item:
             return method_not_allowed()
+        try:
+            instance = self.model.objects.get(**kwargs)
+        except ObjectDoesNotExist:
+            return not_found()
+        POST = QueryDict(request.body)
+        for prop, val in POST.items():
+            if prop not in self.immutable_fields:
+                setattr(instance, prop, val)
+        instance.save()
+        return ok(self.label, result=instance)
     
     def put_list(self, request, *args, **kwargs):
         if not self.allow_put_item:
