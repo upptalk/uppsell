@@ -427,6 +427,9 @@ class Order(models.Model):
     
     class Meta:
         db_table = 'orders'
+    
+    def __unicode__(self):
+        return str(self.id).rjust(8, "0")
 
     def save(self, *args, **kwargs):
         super(Order, self).save(*args, **kwargs)
