@@ -79,12 +79,8 @@ class ProductModelForm(forms.ModelForm):
 # ====================================================================================
 
 class CustomerAdmin(admin.ModelAdmin):
-    list_display = ('username', 'show_name', 'email', 'created_at')
+    list_display = ('username', 'full_name', 'email', 'created_at')
     inlines = (CustomerOrderInline,)
-    def show_name(self, obj):
-        return "%s %s" % (obj.first_name, obj.last_name)
-    show_name.allow_tags = True
-    show_name.short_description = "Name"
 
 class OrderAdmin(admin.ModelAdmin):
     list_display = ('id', 'show_store', 'show_customer', 'order_state', 'payment_state', 'action_pulldown')
@@ -92,7 +88,7 @@ class OrderAdmin(admin.ModelAdmin):
     #actions = order_actions
     fields = ('store', 'customer', "transaction_id", "shipping_address", "billing_address",
             "currency", 'order_state', 'payment_state')
-    readonly_fields = ('order_state', 'payment_state')
+    readonly_fields = ('order_state', 'payment_state', 'customer', 'store',)
     inlines = (OrderItemInline,OrderEventInline,)
     
     def get_urls(self):
