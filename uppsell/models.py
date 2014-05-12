@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from decimal import Decimal
 from django.db import models
 from django.core.exceptions import ObjectDoesNotExist
@@ -113,8 +114,8 @@ ORDER_EVENT_TYPES = (
 
 class Customer(models.Model):
     username = models.CharField("Username", max_length=30, unique=True)
-    first_name = models.CharField('First name', max_length=30, blank=True, db_index=True)
-    last_name = models.CharField('Last name', max_length=30, blank=True, db_index=True)
+    title = models.CharField("Title", max_length=30, blank=True)
+    full_name = models.CharField('Full name', max_length=255, blank=True, db_index=True)
     phone = models.CharField('Phone number', max_length=30, blank=True, db_index=True)
     email = models.EmailField('Email address', blank=True, db_index=True)
     created_at = models.DateTimeField('Date Added', auto_now_add=True)
@@ -150,6 +151,9 @@ class Address(models.Model):
         db_table = 'addresses'
         verbose_name = 'Address'
         verbose_name_plural = 'Addresses'
+    
+    def __unicode__(self):
+        return "%s, %s" % (self.line1, self.city)
 
 class LinkedAccountType(models.Model):
     type = models.CharField("Account Type", max_length=32)
