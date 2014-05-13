@@ -198,7 +198,7 @@ class SalesTaxRate(models.Model):
     store = models.ForeignKey(Store)
     name = models.CharField(max_length="20")
     abbreviation = models.CharField(max_length="10")
-    rate = models.FloatField(default=0.0)
+    rate = models.DecimalField(max_digits=6, decimal_places=5, default=0.0)
     
     def __unicode__(self):
         pct = round(self.rate*100)
@@ -254,8 +254,8 @@ class Listing(models.Model):
     product = models.ForeignKey(Product)
     tax_rate = models.ForeignKey(SalesTaxRate)
     state = models.CharField("Status", max_length=10, choices=PRODUCT_STATES)
-    price = models.DecimalField("Net price", max_digits=8, decimal_places=2, blank=False, null=False, default=0.0)
-    shipping = models.DecimalField("Shipping", max_digits=8, decimal_places=2, blank=False, null=False, default=0.0)
+    price = models.DecimalField("Net price", max_digits=24, decimal_places=12, blank=False, null=False, default=0.0)
+    shipping = models.DecimalField("Shipping", max_digits=24, decimal_places=12, blank=False, null=False, default=0.0)
     name = models.CharField("Name", max_length=200, blank=True, null=True)
     title = models.CharField("Title", max_length=200, blank=True, null=True)
     subtitle = models.CharField("Subtitle", max_length=200, blank=True, null=True)
