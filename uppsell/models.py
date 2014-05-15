@@ -441,7 +441,7 @@ class Order(models.Model):
         shipping_total, sub_total, tax_total, total_total = 0, 0, 0, 0
         for order_item in OrderItem.objects.filter(order=self):
             listing, qty = order_item.product, order_item.quantity
-            tax = listing.price * Decimal(listing.tax_rate.rate) * qty
+            tax = listing.price * listing.tax_rate.rate * qty
             cost = (listing.price * qty) + tax
             shipping_total += listing.shipping * qty
             sub_total += listing.price * qty
@@ -546,4 +546,22 @@ class Invoice(models.Model):
 
     class Meta:
         db_table = 'invoices'
+
+class Card(models.Model):
+    NETWORKS = (("AMEX", "American Express"),
+        ("VISA", "Visa"),
+        ("MASTERCARD", "MasterCard"),
+        ("UNIONPAY", "China UnionPay"),
+        ("DINERS", "Diners Club"),
+        ("DISCOVER", "Discover Card"),
+        ("ENTRUST", "Entrust Bankcard"),
+        ("JCB", "Japan Credit Bureau"),
+        ("UNKNOWN", "Unknown"))
+    customer = models.ForeignKey('uppsell.Customer')
+    holder = models.CharField("Holder Name", max_length=255)
+    reference = models.CharField("Reference Number", max_length=30, null=True, blank=True)
+    pan = models.CharField("Personal Account Number", max_length=30, null=True, blank=True)
+    last4 = models.CharField("Last 4 digits", max_length=4, null=True, blank=True)
+    network = models.CharField("Network", max_length=12, default="UNKNOWN", choices=NETWORKS)
+    expiry = models.DateField("Expiration Date", null=True, blank=True)
 
