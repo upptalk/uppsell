@@ -135,7 +135,7 @@ class Customer(models.Model):
 
 class Address(models.Model):
     customer = models.ForeignKey(Customer)
-    line1 = models.CharField("Address line 1", max_length=255)
+    line1 = models.CharField("Address", max_length=255)
     line2 = models.CharField("Address line 2", max_length=255, blank=True)
     line3 = models.CharField("Address line 3", max_length=255, blank=True)
     city = models.CharField("City", max_length=255)
@@ -354,27 +354,34 @@ class CartItem(models.Model):
         unique_together = ('cart', 'product')
 
 class Coupon(models.Model):
-    RELATIONS = (('individual', 'Individual'),
-            ('product', 'Product'),
-            ('group', 'Product Group'),
-            ('shipping', 'Shipping'))
     TYPES = (('fixed_discount', 'Fixed Discount'),
             ('pct_discount', 'Percentage Discount'))
-    relation = models.CharField("Relation", max_length=16, choices=RELATIONS)
-    type = models.CharField("Type", max_length=16, choices=TYPES)
-    code = models.CharField("Code", max_length=40)
+    name = models.CharField("Name", max_length=255, null=True, blank=True,
+            help_text='Name of Coupon, eg. \'40 off your order\'')
+    type = models.CharField("Type", max_length=16, choices=TYPES,
+            help_text="Type of discount", null=False, blank=False)
+    code = models.CharField("Code", max_length=40, unique=True,
+            help_text="Unique coupon code, alphanumeric up to 40 characters")
     
-    store = models.ForeignKey(Store)
-    customer = models.ForeignKey(Customer, blank=True, null=True) # Optionally references Customer for "individual" coupon
-    product = models.ForeignKey(Listing, blank=True, null=True) # References Listing for "product" coupon
-    product_group = models.ForeignKey(ProductGroup, blank=True, null=True) # References ProductGroup for "group" coupon
+    store = models.ForeignKey(Store, blank=True, null=True,
+            help_text="Select a store this coupon is valid for, or leave blank for all")
+    customer = models.ForeignKey(Customer, blank=True, null=True,
+            help_text="Select Customer for 'individual' coupon")
+    product = models.ForeignKey(Product, blank=True, null=True,
+            help_text="Select Product for 'product' coupon")
+    product_group = models.ForeignKey(ProductGroup, blank=True, null=True,
+            help_text="Select Product Group for 'group' coupon")
     
-    discount_amount = models.DecimalField("Fixed discount", max_digits=8, decimal_places=2, blank=True, null=True)
-    discount_pct = models.PositiveIntegerField("Percent discount", blank=True, null=True)
-    max_uses = models.PositiveIntegerField("Max uses")
-    remaining = models.PositiveIntegerField("Remaining")
-    valid_from = models.DateTimeField('Start validity', auto_now_add=True)
-    valid_until = models.DateTimeField('End validity')
+    discount_amount = models.DecimalField("Discount amount", max_digits=8, decimal_places=2,
+            blank=True, null=True, help_text="Amount to be discounted from GROSS (after tax) total, or:")
+    max_uses = models.PositiveIntegerField("Max uses",
+            help_text="Maximum number of customers who may use this coupon")
+    remaining = models.PositiveIntegerField("Remaining",
+            help_text="Number of spends remaining")
+    valid_from = models.DateTimeField('Start validity',
+            help_text="From when is the coupon valid")
+    valid_until = models.DateTimeField('End validity',
+            help_text="When does the coupon expire")
     created_at = models.DateTimeField('timestamp created', auto_now_add=True)
     updated_at = models.DateTimeField('timestamp modifeid', auto_now=True)
     
@@ -382,6 +389,12 @@ class Coupon(models.Model):
         db_table = 'coupons'
         verbose_name = 'Coupon'
         verbose_name_plural = 'Coupons'
+    
+    def save(self, *args, **kwargs):
+        print args, kwargs
+        if not self.pk:
+            self.remaining = self.max_uses
+        super(Coupon, self).save(*args, **kwargs)
 
     def spend(self, customer):
         if self.remaining == 0:

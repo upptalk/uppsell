@@ -1,4 +1,5 @@
 from functools import update_wrapper
+from decimal import Decimal, ROUND_UP
 from django.contrib import admin, messages
 from django import forms
 from django.conf.urls import url, patterns
@@ -7,6 +8,34 @@ from django.contrib.admin.util import (unquote, flatten_fieldsets, get_deleted_o
 from django.http import HttpResponse, HttpResponseRedirect
 from uppsell import models
 from uppsell.workflow import BadTransition
+
+#====================================================================================
+# Field formatters
+#====================================================================================
+
+def format_decimal_field(fieldname, short_description=None, quantize='0.01'):
+    def formatter(cls, obj):
+        return getattr(obj, fieldname).quantize(Decimal('.01'), rounding=ROUND_UP)
+    if not short_description:
+        short_description = fieldname.capitalize
+    formatter.short_description = short_description
+    formatter.allow_tags = False
+    return formatter
+
+def format_price_field(fieldname, short_description=None):
+    def formatter(cls, obj):
+        net = getattr(obj, fieldname)
+        gross = net * obj.tax_rate.rate
+        return "%.2f (%.2f)" % (net, gross+net)
+    if not short_description:
+        short_description = fieldname.capitalize
+    formatter.short_description = short_description
+    formatter.allow_tags = False
+    return formatter
+
+#====================================================================================
+# Event handlers
+#====================================================================================
 
 def order_event_handler(type, event, event_name=None):
     if event_name is None:
@@ -46,9 +75,15 @@ class CustomerOrderInline(admin.TabularInline):
     model = models.Order
     extra = 0
     can_delete = False
-    #fields = ('action_type', 'event', 'state_before', 'state_after', 'comment', 'created_at')
-    #readonly_fields  = fields
+    fields = ('store', 'order_state', 'payment_state', 'created_at')
+    readonly_fields  = fields
 
+class CustomerAddressInline(admin.TabularInline):
+    model = models.Address
+    extra = 0
+    can_delete = False
+    fields = ('line1', 'city', 'zip', 'country_code')
+    readonly_fields  = fields
 
 # ====================================================================================
 # FORMS
@@ -71,6 +106,7 @@ class ListingModelForm(forms.ModelForm):
 
 class ProductModelForm(forms.ModelForm):
     features = forms.CharField(widget=forms.Textarea, required=False)
+    description = forms.CharField(widget=forms.Textarea, required=False)
     class Meta:
         model = models.Product
 
@@ -80,7 +116,7 @@ class ProductModelForm(forms.ModelForm):
 
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ('username', 'full_name', 'email', 'created_at')
-    inlines = (CustomerOrderInline,)
+    inlines = (CustomerOrderInline,CustomerAddressInline)
 
 class OrderAdmin(admin.ModelAdmin):
     list_display = ('id', 'show_store', 'show_customer', 'order_state', 'payment_state', 'action_pulldown')
@@ -151,14 +187,42 @@ class SalesTaxRateAdmin(admin.ModelAdmin):
 class ProductAdmin(admin.ModelAdmin):
     form = ProductModelForm
     list_display = ('sku', 'group', 'name')
+    
+    fieldsets = (
+        (None, {
+            'fields': (('sku', 'group'), ('name', 'title'), 'subtitle', ('description', 'features'))
+        }),
+        ('Stock and shipping', {
+            'fields': ('shipping', 'has_stock', 'stock_units')
+        }),
+    )
 
 class ListingAdmin(admin.ModelAdmin):
     form = ListingModelForm
-    list_display = ('product', 'state', 'price')
+    list_display = ('product', 'state', 'show_price')
     list_filter = ('state',)
+    show_price = format_price_field('price', None)
+
+class AddressAdmin(admin.ModelAdmin):
+    list_display = ('customer', 'line1', 'city', 'country')
+
+class CouponAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'max_uses', 'remaining', 'valid_until')
+    fieldsets = (
+        (None, {
+            'fields': ('code', 'name', 'type', 'discount_amount')
+        }),
+        ('Optional relations', {
+            'fields': ('store', 'customer', 'product', 'product_group')
+        }),
+        ('Usage', {
+            'fields': ('max_uses', 'remaining', 'valid_from', 'valid_until')
+        }),
+    )
+    readonly_fields = ('remaining',)
 
 admin.site.register(models.Customer, CustomerAdmin)
-admin.site.register(models.Address)
+admin.site.register(models.Address, AddressAdmin)
 admin.site.register(models.Store)
 admin.site.register(models.SalesTaxRate, SalesTaxRateAdmin)
 admin.site.register(models.ProductGroup)
@@ -166,5 +230,5 @@ admin.site.register(models.Product, ProductAdmin)
 admin.site.register(models.Listing, ListingAdmin)
 admin.site.register(models.Order, OrderAdmin)
 admin.site.register(models.Invoice)
-admin.site.register(models.Coupon)
+admin.site.register(models.Coupon, CouponAdmin)
 
