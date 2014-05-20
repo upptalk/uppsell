@@ -123,7 +123,7 @@ class OrderAdmin(admin.ModelAdmin):
     list_filter = ('store', 'order_state', 'payment_state')
     #actions = order_actions
     fields = ('store', 'customer', "transaction_id", "shipping_address", "billing_address",
-            "currency", 'order_state', 'payment_state')
+            "currency", 'order_state', 'payment_state', 'coupon')
     readonly_fields = ('order_state', 'payment_state', 'customer', 'store',)
     inlines = (OrderItemInline,OrderEventInline,)
     

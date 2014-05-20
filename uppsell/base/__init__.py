@@ -4,11 +4,14 @@ import uppsell
 from . import resources
 
 uppsell.api.add_resource(resources.CustomerResource,
-    r'^customers$',
-    r'^customers/(?P<id>\d*)$')
+    r'customers$',
+    r'customers/(?P<id>\d*)$')
 uppsell.api.add_resource(resources.CustomerAddressResource,
-    r'^customers/(?P<id>[^/]*)/addresses',
-    r'^customers/(?P<id>[^/]*)/addresses/(?P<address_id>[^/]*)'),
+    r'customers/(?P<customer__id>\d*)/addresses$',
+    r'customers/(?P<customer__id>\d*)/addresses/(?P<id>\d*)$')
+uppsell.api.add_resource(resources.CardResource,
+    r'customers/(?P<customer__id>\d*)/cards$',
+    r'customers/(?P<customer__id>\d*)/cards/(?P<id>\d*)$')
 
 uppsell.api.add_resource(resources.ProductResource,
     r'^products$',

@@ -1,4 +1,5 @@
 from django.dispatch import Signal
+from uppsell.exceptions import CancelTransition, BadTransition
 
 pre_transition = Signal(providing_args=["model", "state", "transition"])
 post_transition = Signal(providing_args=["model", "state", "transition"])
@@ -23,13 +24,6 @@ def post_transition_handler(callback, on_key, on_model, on_state="__all__", on_t
         return
     post_transition.connect(wrapper)
     return wrapper
-
-class CancelTransition(Exception):
-    """Cancel the current transition"""
-    pass
-class BadTransition(CancelTransition):
-    """The current transition is not allowed"""
-    pass
 
 class State(object):
     _manager, _state, _transitions = None, None, None

@@ -408,6 +408,7 @@ class Coupon(models.Model):
 
 class CouponSpend(models.Model):
     customer = models.ForeignKey(Customer)
+    order = models.ForeignKey('Order')
     coupon = models.ForeignKey(Coupon)
     created_at = models.DateTimeField('timestamp created', auto_now_add=True)
     class Meta:
@@ -569,7 +570,7 @@ class Card(models.Model):
         ("DISCOVER", "Discover Card"),
         ("ENTRUST", "Entrust Bankcard"),
         ("JCB", "Japan Credit Bureau"),
-        ("UNKNOWN", "Unknown"))
+        ("OTHER", "Other"))
     customer = models.ForeignKey('uppsell.Customer')
     holder = models.CharField("Holder Name", max_length=255)
     reference = models.CharField("Reference Number", max_length=30, null=True, blank=True)

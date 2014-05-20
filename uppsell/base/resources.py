@@ -46,6 +46,10 @@ def format_order(order):
     order_dict["totals"] = order.totals
     return order_dict
 
+class CardResource(ModelResource):
+    required_params = ['customer__id']
+    model = models.Card
+
 class ProductResource(ModelResource):
     model = models.Product
 
@@ -53,7 +57,6 @@ class StoreResource(ModelResource):
     model = models.Store
 
 class CustomerResource(ModelResource):
-    required_params = []
     model = models.Customer
     
 class CustomerAddressResource(ModelResource):
@@ -159,7 +162,10 @@ class OrderResource(ModelResource):
     immutable_fields = ('order_state', 'payment_state', 'fraud_state', 'store', 'customer',)
 
     def get_item(self, request, id):
-        order = self.model.objects.get(id=id)
+        try:
+            order = self.model.objects.get(id=id)
+        except ObjectDoesNotExist:
+            return not_found()
         items = OrderedDict()
         for item in models.OrderItem.objects.filter(order=order):
             items[item.product.product.sku] = format_listing(order.store, item.product, item.quantity)
