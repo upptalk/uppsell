@@ -12,6 +12,7 @@ from uppsell import models
 from uppsell.resources import Resource, ModelResource
 from uppsell.response import JsonResponse
 from uppsell.util.serialize import model_to_dict
+from uppsell.exceptions import CancelTransition, BadTransition
 
 def get_listings(store):
     for listing in models.Listing.objects.filter(store=store):
@@ -255,19 +256,21 @@ class OrderItemResource(ModelResource):
         return ok(result=items)
 
 
-class OrderEventResource(Resource):
-    required_params = ['id'] # id=Order.id
+class OrderEventResource(ModelResource):
+    model = models.OrderEvent
+    required_params = ['id',] # id=Order.id
     
-    def get_list(self, request, *args, **kwargs):
-        pass
-    
-    def post(self, order_id):
-        event = self.POST.event
-        order = Order.objects.get(pk=order_id)
+    def post_list(self, request, *args, **kwargs):
         try:
-            order.order_workflow.do_transition(transition)
-            return ok()
+            order = models.Order.objects.get(pk=kwargs["id"])
+        except ObjectDoesNotExist:
+            return not_found()
+        try:
+            event = models.OrderEvent.objects.create(order=order,
+                action_type = request.POST.get("action_type"),    
+                event = request.POST.get("event"),    
+                comment = request.POST.get("comment"))
+            return created()
         except BadTransition:
             return bad_request()
-
 

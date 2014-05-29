@@ -77,7 +77,7 @@ class WorkflowTestCase(TestCase):
         def pre_transition_event(signal, key, transition, sender, model, state):
             self.assertEqual("A", state)
             self.assertEqual("TR_1", transition)
-            self.assertEqual(ExampleModel, model)
+            self.assertEqual(ExampleModel, model.__class__)
             ExampleModel.flag = "BLUE"
         
         pre_transition_signal.connect(pre_transition_event)
@@ -95,7 +95,7 @@ class WorkflowTestCase(TestCase):
         def post_transition_event(signal, *args, **kwargs):
             self.assertEqual("B", kwargs["state"])
             self.assertEqual("TR_1", kwargs["transition"])
-            self.assertEqual(ExampleModel, kwargs["model"])
+            self.assertEqual(ExampleModel, kwargs["model"].__class__)
             ExampleModel.flag = "BLUE"
         
         post_transition_signal.connect(post_transition_event)
@@ -113,7 +113,7 @@ class WorkflowTestCase(TestCase):
         def pre_transition_task(signal, key, transition, sender, model, state):
             self.assertEqual("A", state)
             self.assertEqual("TR_5", transition)
-            self.assertEqual(ExampleModel, model)
+            self.assertEqual(ExampleModel, model.__class__)
             ExampleModel.flag = "BLUE"
         
         # This doesn't get called
@@ -134,7 +134,7 @@ class WorkflowTestCase(TestCase):
         def post_transition_task(signal, key, transition, sender, model, state):
             self.assertEqual("B", state)
             self.assertEqual("TR_6", transition)
-            self.assertEqual(ExampleModel, model)
+            self.assertEqual(ExampleModel, model.__class__)
             ExampleModel.flag = "BLUE"
         
         self._manager.do("TR_6")

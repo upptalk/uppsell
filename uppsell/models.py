@@ -5,10 +5,8 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db.models.signals import post_save
 from django.db.models.fields import Field
-from workflow import Workflow, BadTransition, pre_transition_handler, \
-        post_transition_handler
-from .exceptions import CouponLimitError
-
+from uppsell.workflow import Workflow, BadTransition, pre_transition, post_transition
+from uppsell.exceptions import CouponLimitError
 
 ADDRESS_TYPES = ( # (type, description)
     ('billing', 'Billing'),
@@ -21,7 +19,7 @@ ORDER_STATES = ( # (order_state, description)
     ('shipping', 'Shipping'),
     ('completed', 'Completed'),
     ('cancellation_requested', 'Cancellation Requested'),
-    ('canceled', 'Canceled'),
+    ('cancelled', 'Canceled'),
     ('hold', 'On Hold'),
 )
 ORDER_TRANSITIONS = ( # (order_transition, description)
@@ -34,23 +32,23 @@ ORDER_TRANSITIONS = ( # (order_transition, description)
     ('process', 'Process order'),
 )
 ORDER_WORKFLOW = ( # (transition, state_before, state_after)
-    ('open', 'init', 'pending_payment'),
+    ('start', 'init', 'pending_payment'),
     ('capture', 'pending_payment', 'processing'),
-    ('cancel', 'pending_payment', 'canceled'),
-    ('cancel', 'processing', 'canceled'),
+    ('cancel', 'pending_payment', 'cancelled'),
+    ('cancel', 'processing', 'cancelled'),
     ('ship', 'processing', 'shipping'),
     ('receive', 'shipping', 'completed'),
     ('process', 'processing', 'completed'),
     ('cancel', 'completed', 'cancellation_requested'),
     ('deny', 'cancellation_requested', 'completed'),
-    ('cancel', 'cancellation_requested', 'canceled'),
+    ('cancel', 'cancellation_requested', 'cancelled'),
 )
 PAYMENT_STATES = ( # (payment_state, description)
     ('init', 'Initialized'),
     ('pending', 'Pending Payment'),
     ('authorized', 'Authorized'),
     ('captured', 'Captured'),
-    ('canceled', 'Canceled'),
+    ('cancelled', 'Canceled'),
     ('declined', 'Declined'),
     ('expired', 'Expired'),
     ('disputed', 'Disputed'),
@@ -75,7 +73,7 @@ PAYMENT_WORKFLOW = ( # (transition, state_before, state_after)
     ('authorize', 'pending', 'authorized'),
     ('capture', 'authorized', 'captured'),
     ('decline', 'pending', 'declined'),
-    ('cancel', 'pending', 'canceled'),
+    ('cancel', 'pending', 'cancelled'),
     ('expire', 'pending', 'expired'),
     ('expire', 'authorized', 'expired'),
     ('dispute', 'capture', 'disputed'),
@@ -111,7 +109,6 @@ ORDER_EVENT_TYPES = (
     ('fraud', 'Fraud Event'),
 )
 
-
 class Customer(models.Model):
     username = models.CharField("Username", max_length=30, unique=True)
     title = models.CharField("Title", max_length=30, blank=True)
@@ -132,6 +129,11 @@ class Customer(models.Model):
 
     def __unicode__(self):
         return self.username
+
+    def create_anonymous(self):
+        username = "anon_%s" % str(uuid.uuid4().get_hex().upper()[0:25])
+        customer = Customer.objects.create(username=username)
+        return customer
 
 class Address(models.Model):
     customer = models.ForeignKey(Customer)
@@ -270,14 +272,6 @@ class Listing(models.Model):
     def __unicode__(self):
         return self.product.name
 
-#def api_field(func):
-#    def wrap(model, *args, **kwargs):
-#        try:
-#            model._meta.api_fields.append(func.__name__)
-#        except AttributeError:
-#            model._meta.api_fields = [func.__name__]
-#    return wrap
-
 class Cart(models.Model):
     key = models.CharField("Key", max_length=40)
     store = models.ForeignKey(Store)
@@ -285,9 +279,6 @@ class Cart(models.Model):
     created_at = models.DateTimeField('date created', auto_now_add=True)
     updated_at = models.DateTimeField('date modified', auto_now=True)
     
-#    @property
-#    def hello (self): return "Hello"
-
     class Meta:
         db_table = 'carts'
         verbose_name = 'Shopping cart'
@@ -391,7 +382,6 @@ class Coupon(models.Model):
         verbose_name_plural = 'Coupons'
     
     def save(self, *args, **kwargs):
-        print args, kwargs
         if not self.pk:
             self.remaining = self.max_uses
         super(Coupon, self).save(*args, **kwargs)
@@ -448,7 +438,8 @@ class Order(models.Model):
     def save(self, *args, **kwargs):
         super(Order, self).save(*args, **kwargs)
         if self.order_state == "init":
-            OrderEvent.objects.create(order=self, action_type="order", event="open")
+            OrderEvent.objects.create(order=self, action_type="order", event="start")
+            OrderEvent.objects.create(order=self, action_type="payment", event="start")
     
     @property
     def totals(self):
@@ -467,33 +458,17 @@ class Order(models.Model):
                 "total_total": round(total_total, 2)}
 
     @property
-    def order_workflow(self, transitions = None):
+    def order_workflow(self):
         if self._order_workflow is None:
             self._order_workflow = Workflow(self, u"order_state", ORDER_WORKFLOW)
         return self._order_workflow
     
     @property
-    def payment_workflow(self, transitions = None):
+    def payment_workflow(self):
         if self._payment_workflow is None:
             self._payment_workflow = Workflow(self, u"payment_state", PAYMENT_WORKFLOW)
         return self._payment_workflow
     
-    @property
-    def total_net(self):
-        pass
-
-    @property
-    def total_tax(self):
-        pass
-
-    @property
-    def total_shipping(self):
-        pass
-    
-    @property
-    def total(self):
-        pass
-
     def event(self, event_type, event):
         OrderEvent.objects.create(order=self, action_type=event_type, event=event)
 
@@ -521,17 +496,18 @@ class OrderEvent(models.Model):
         try:
             if self.action_type == 'order':
                 self.state_before = self.order.order_state
-                self.order.order_workflow.do(self.event)
+                self.state_after = self.order.order_state
+                self.order.order_workflow.do(self.event, True)
                 self.state_after = self.order.order_state
             if self.action_type == 'payment':
                 self.state_before = self.order.payment_state
-                self.order.payment_workflow.do(self.event)
+                self.state_after = self.order.payment_state
+                self.order.payment_workflow.do(self.event, True)
                 self.state_after = self.order.payment_state
         except BadTransition:
-            raise
-        self.order.save()
+            pass # we still log the event even if it failed
         super(OrderEvent, self).save(*args, **kwargs)
-
+    
 class Invoice(models.Model):
     order_id = models.IntegerField(unique=True) # non-relational
     store_id = models.IntegerField() # non-relational
@@ -578,4 +554,37 @@ class Card(models.Model):
     last4 = models.CharField("Last 4 digits", max_length=4, null=True, blank=True)
     network = models.CharField("Network", max_length=12, default="UNKNOWN", choices=NETWORKS)
     expiry = models.DateField("Expiration Date", null=True, blank=True)
+
+
+#====================================================================================
+# Basic order workflow tasks
+#====================================================================================
+
+@post_transition("payment_state", Order, "decline", "declined")
+def cancel_order_on_payment_decline(signal, key, transition, sender, model, state):
+    """This callback occurs just after the payment
+    moves from pending to declined"""
+    OrderEvent.objects.create(order=model,
+        action_type = "order",
+        event="cancel",
+        comment="Order cancelled automatically because payment failed")
+
+@post_transition("payment_state", Order, "expire", "expired")
+def cancel_order_on_payment_expire(signal, key, transition, sender, model, state):
+    """This callback occurs just after the payment
+    moves from pending to expired"""
+    OrderEvent.objects.create(order=model,
+        action_type="order",
+        event="cancel",
+        comment="Order cancelled automatically because payment expired")
+
+@post_transition("payment_state", Order, "capture", "captured")
+def notify_order_on_payment_capture(signal, key, transition, sender, model, state):
+    """This callback occurs just after the payment
+    moves from pending to captured"""
+    OrderEvent.objects.create(order=model,
+        action_type="order", 
+        event="capture",
+        comment="Order processing as payment captured")
+
 

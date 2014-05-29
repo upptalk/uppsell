@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from django.views.decorators.csrf import csrf_exempt
 
 class UppsellApi(object):
     
@@ -17,7 +18,7 @@ class UppsellApi(object):
         from django.conf.urls import patterns, url, include
         urlpatterns = patterns('')
         for resource, route in self._resources:
-            urlpatterns += patterns('', url(route, resource.as_view()))
+            urlpatterns += patterns('', url(route, csrf_exempt(resource.as_view())))
         return urlpatterns
 
     @property

@@ -23,8 +23,8 @@ class ModelResource(Resource):
     allow_get_list = True
     allow_put_item = True
     allow_put_list = False
-    allow_post_item = True
-    allow_post_list = False
+    allow_post_item = False
+    allow_post_list = True
     allow_delete_item = True
     allow_delete_list = False
     
@@ -40,7 +40,6 @@ class ModelResource(Resource):
             'verbose_name_plural': unicode(self.model._meta.verbose_name_plural),
         }
 
-    @method_decorator(csrf_exempt)
     def dispatch(self, *args, **kwargs):
         """The dispatch() method is decorated to make it exempt from 
         CSRF validation"""
