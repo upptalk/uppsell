@@ -19,11 +19,11 @@ def autodiscover():
 
     for app in settings.INSTALLED_APPS:
         mod = import_module(app)
+        print "app", app, module_has_submodule(mod, 'uppsell_api')
         # Attempt to import the app's admin module.
         try:
             before_import_registry = copy.copy(api._resources)
-            if app == "uppsell": submod = 'uppsell.base'
-            else: submod = '%s.uppsell' % app
+            submod = '%s.uppsell_api' % app
             import_module(submod)
         except:
             if app == "uppsell": raise
@@ -36,6 +36,6 @@ def autodiscover():
             # Decide whether to bubble up this error. If the app just
             # doesn't have an admin module, we can ignore the error
             # attempting to import it, otherwise we want it to bubble up.
-            if module_has_submodule(mod, 'uppsell'):
+            if module_has_submodule(mod, 'uppsell_api'):
                 raise
 
