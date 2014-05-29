@@ -6,10 +6,9 @@ setup(
     version = "0.1",
     author = "Adam Hayward",
     author_email = "adam@happy.cat",
-    description = ("A Flask-based e-commerce API "\
-            "and a django-backed admin for managing them."),
+    description = ("A django-based e-commerce API and admin backend."),
     license = "MIT",
-    keywords = "example documentation tutorial",
+    keywords = "e-commerce rest api sales",
     url = "https://github.com/upptalk/uppsell",
     packages = find_packages(exclude="django_site"),
     long_description="See https://github.com/upptalk/uppsell",
@@ -25,5 +24,6 @@ setup(
         "Topic :: Utilities",
         "License :: OSI Approved :: MIT License",
     ],
+    test_suite='tests.main',
 )
 
