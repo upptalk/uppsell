@@ -12,7 +12,7 @@ from uppsell import models
 from uppsell.resources import Resource, ModelResource
 from uppsell.response import JsonResponse
 from uppsell.util.serialize import model_to_dict
-from uppsell.exceptions import CancelTransition, BadTransition
+from uppsell.exceptions import *
 
 def get_listings(store):
     for listing in models.Listing.objects.filter(store=store):
@@ -34,12 +34,16 @@ def format_listing(store, listing, quantity = None):
         if listing_dict[k].strip(): prod_dict[k] = listing_dict[k]
     prod_dict['features'] = [f for f in \
             [f.strip() for f in prod_dict['features'].split("\n")] if f]
+    prod_dict['provisioning_codes'] = [f for f in \
+            [f.strip() for f in prod_dict['provisioning_codes'].split("\n")] if f]
     if quantity is not None:
         prod_dict['quantity'] = quantity
     return prod_dict
 
 def format_order(order):
     order_dict = model_to_dict(order)
+    if order.coupon:
+        order_dict["coupon"] = order.coupon.code
     if order.billing_address:
         order_dict["billing_address"] = model_to_dict(order.billing_address)
     if order.shipping_address:
@@ -61,13 +65,13 @@ class CustomerResource(ModelResource):
     model = models.Customer
     
 class CustomerAddressResource(ModelResource):
-    required_params = ['id']
+    required_params = ['customer__id']
     model = models.Address
     
     def post_list(self, request, *args, **kwargs):
         """Create a new address"""
         try:
-            customer = models.Customer.objects.get(id=kwargs["id"])
+            customer = models.Customer.objects.get(id=kwargs["customer__id"])
         except ObjectDoesNotExist:
             return not_found("Customer does not exist")
         address_data = dict(request.POST.items() + [("customer", customer)])
@@ -188,6 +192,7 @@ class OrderResource(ModelResource):
 
     def post_list(self, request, *args, **kwargs):
         """Create a new order"""
+        warnings = []
         try:
             order_data = json.loads(request.body)
         except ValueError:
@@ -208,13 +213,26 @@ class OrderResource(ModelResource):
         order = models.Order.objects.create(store=store, customer=customer, currency=store.default_currency)
         items = {}
         for sku, qty in order_data.get("items", {}).items():
-            listing = models.Listing.objects.get(product__sku=sku)
+            listing = models.Listing.objects.get(product__sku=sku) # TODO handle error if listing not valid
             models.OrderItem.objects.create(order=order, product=listing, quantity=qty)
             items[sku] = listing
+        coupon_code = order_data.get("coupon")
+        if coupon_code:
+            try:
+                coupon = models.Coupon.objects.get(code=coupon_code)
+                coupon.spend(customer, order)
+            except ObjectDoesNotExist:
+                warnings.append["bad_coupon"]
+            except CouponDoubleSpendError:
+                warnings.append["coupon_double_spend"]
+            except CouponLimitError:
+                warnings.append["coupon_limit_exceeded"]
+            except CouponDateError:
+                warnings.append["coupon_date_error"]
         return created(self.label, result={
             "order": format_order(order),
             "items": items,
-            "customer": customer})
+            "customer": customer}, warnings=warnings)
 
 class OrderItemResource(ModelResource):
     model = models.OrderItem

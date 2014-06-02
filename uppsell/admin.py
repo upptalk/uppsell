@@ -70,7 +70,6 @@ class OrderItemInline(admin.TabularInline):
     fields = ('product','quantity',)
     readonly_fields  = fields
 
-
 class CustomerOrderInline(admin.TabularInline):
     model = models.Order
     extra = 0
@@ -107,6 +106,10 @@ class ListingModelForm(forms.ModelForm):
 class ProductModelForm(forms.ModelForm):
     features = forms.CharField(widget=forms.Textarea, required=False)
     description = forms.CharField(widget=forms.Textarea, required=False)
+    provisioning_codes = forms.CharField(widget=forms.Textarea, required=False)
+    features.widget.attrs["rows"] = 5
+    description.widget.attrs["rows"] = 5
+    provisioning_codes.widget.attrs["rows"] = 3
     class Meta:
         model = models.Product
 
@@ -124,7 +127,7 @@ class OrderAdmin(admin.ModelAdmin):
     #actions = order_actions
     fields = ('store', 'customer', "transaction_id", "shipping_address", "billing_address",
             "currency", 'order_state', 'payment_state', 'coupon')
-    readonly_fields = ('order_state', 'payment_state', 'customer', 'store',)
+    readonly_fields = ('order_state', 'payment_state', 'customer', 'store',"shipping_address", "billing_address",)
     inlines = (OrderItemInline,OrderEventInline,)
     
     def get_urls(self):
@@ -190,10 +193,10 @@ class ProductAdmin(admin.ModelAdmin):
     
     fieldsets = (
         (None, {
-            'fields': (('sku', 'group'), ('name', 'title'), 'subtitle', ('description', 'features'))
+            'fields': ('sku', 'group', 'name', 'title', 'subtitle', ('description', 'features'))
         }),
         ('Stock and shipping', {
-            'fields': ('shipping', 'has_stock', 'stock_units')
+            'fields': ('shipping', 'has_stock', 'stock_units', 'provisioning_codes')
         }),
     )
 

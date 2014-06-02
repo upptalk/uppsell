@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-from django.views.decorators.csrf import csrf_exempt
+try:
+    from django.views.decorators.csrf import csrf_exempt
+except ImportError:
+    def csrf_exempt(func): return func
 
 class UppsellApi(object):
     

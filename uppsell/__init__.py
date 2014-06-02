@@ -19,7 +19,6 @@ def autodiscover():
 
     for app in settings.INSTALLED_APPS:
         mod = import_module(app)
-        print "app", app, module_has_submodule(mod, 'uppsell_api')
         # Attempt to import the app's admin module.
         try:
             before_import_registry = copy.copy(api._resources)

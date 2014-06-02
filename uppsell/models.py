@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 from decimal import Decimal
 from django.db import models
+from django.utils.timezone import now
 from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db.models.signals import post_save
 from django.db.models.fields import Field
 from uppsell.workflow import Workflow, BadTransition, pre_transition, post_transition
-from uppsell.exceptions import CouponLimitError
+from uppsell.exceptions import *
 
 ADDRESS_TYPES = ( # (type, description)
     ('billing', 'Billing'),
@@ -182,6 +183,17 @@ class LinkedAccount(models.Model):
     def __unicode__(self):
         return self.name
 
+class Channel(models.Model):
+    name = models.CharField(max_length=200)
+    created_at = models.DateTimeField('date created', auto_now_add=True)
+    updated_at = models.DateTimeField('date modifeid',  auto_now=True)
+
+    class Meta:
+        db_table = 'channels'
+
+    def __unicode__(self):
+        return self.name
+
 class Store(models.Model):
     code = models.CharField(max_length=200, unique=True)
     name = models.CharField(max_length=200)
@@ -220,8 +232,9 @@ class Product(models.Model):
     sku = models.CharField(max_length=200)
     shipping = models.BooleanField("Uses shipping")
     has_stock = models.BooleanField("Uses stock control")
-    provisioning_codes = models.CharField(max_length=255, blank=True, null=True)
-    name = models.CharField(max_length=200)
+    provisioning_codes = models.CharField(max_length=5000, blank=True, null=True,
+            help_text="Internal identifiers for service provisioning")
+    name = models.CharField(max_length=200, help_text="Internal name of product")
     title = models.CharField(max_length=200)
     subtitle = models.CharField(max_length=200)
     description = models.CharField(max_length=10000)
@@ -234,7 +247,7 @@ class Product(models.Model):
         db_table = 'products'
 
     def __unicode__(self):
-        return self.name
+        return "%s: %s" % (self.sku, self.name)
 
 class ProductCode(models.Model):
     """
@@ -386,24 +399,34 @@ class Coupon(models.Model):
             self.remaining = self.max_uses
         super(Coupon, self).save(*args, **kwargs)
 
-    def spend(self, customer):
-        if self.remaining == 0:
-            raise CouponLimitError
+    def spend(self, customer, order=None):
+        now_ts = now()
+        if now_ts < self.valid_from or now_ts > self.valid_until:
+            raise CouponDateError
         try:
             existing = CouponSpend.objects.get(coupon=self, customer=customer)
-            raise CouponSpendError
+            raise CouponDoubleSpendError
         except ObjectDoesNotExist:
             pass
         spend = CouponSpend.objects.create(coupon=self, customer=customer)
+        if order:
+            order.coupon = self
+            order.save()
 
 class CouponSpend(models.Model):
     customer = models.ForeignKey(Customer)
-    order = models.ForeignKey('Order')
     coupon = models.ForeignKey(Coupon)
     created_at = models.DateTimeField('timestamp created', auto_now_add=True)
     class Meta:
         db_table = 'coupon_spends'
         unique_together = (('customer', 'coupon'),)
+    def save(self, *args, **kwargs):
+        if not self.pk:
+            if self.coupon.remaining < 1:
+                raise CouponLimitError
+            self.coupon.remaining = self.coupon.remaining - 1
+            self.coupon.save()
+        super(CouponSpend, self).save(*args, **kwargs)
 
 class Order(models.Model):
     
@@ -586,5 +609,4 @@ def notify_order_on_payment_capture(signal, key, transition, sender, model, stat
         action_type="order", 
         event="capture",
         comment="Order processing as payment captured")
-
 

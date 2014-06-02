@@ -28,6 +28,10 @@ class ModelResource(Resource):
     allow_delete_item = True
     allow_delete_list = False
     
+    def __init__(self, *args, **kwargs):
+        self.required_params = sorted(self.required_params)
+        return super(ModelResource, self).__init__(*args, **kwargs)
+
     @property
     def label(self):
         return u"%s.%s" % (self.model._meta.app_label, self.model.__name__)
@@ -40,28 +44,23 @@ class ModelResource(Resource):
             'verbose_name_plural': unicode(self.model._meta.verbose_name_plural),
         }
 
-    def dispatch(self, *args, **kwargs):
-        """The dispatch() method is decorated to make it exempt from 
-        CSRF validation"""
-        return super(ModelResource, self).dispatch(*args, **kwargs)
-
     def get(self, request, *args, **kwargs):
-        if sorted(kwargs.keys()) == sorted(self.required_params):
+        if sorted(kwargs.keys()) == self.required_params:
             return self.get_list(request, *args, **kwargs)
         return self.get_item(request, *args, **kwargs)
     
     def put(self, request, *args, **kwargs):
-        if sorted(kwargs.keys()) == sorted(self.required_params):
+        if sorted(kwargs.keys()) == self.required_params:
             return self.put_list(request, *args, **kwargs)
         return self.put_item(request, *args, **kwargs)
     
     def post(self, request, *args, **kwargs):
-        if sorted(kwargs.keys()) == sorted(self.required_params):
+        if sorted(kwargs.keys()) == self.required_params:
             return self.post_list(request, *args, **kwargs)
         return self.post_item(request, *args, **kwargs)
     
     def delete(self, request, *args, **kwargs):
-        if sorted(kwargs.keys()) == sorted(self.required_params):
+        if sorted(kwargs.keys()) == self.required_params:
             return self.delete_list(request, *args, **kwargs)
         return self.delete_item(request, *args, **kwargs)
     
