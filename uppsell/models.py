@@ -457,6 +457,16 @@ class Order(models.Model):
     
     def __unicode__(self):
         return str(self.id).rjust(8, "0")
+    
+    def get_provisioning_codes(self):
+        prod_codes = []
+        for item in self.items.all():
+            prod = item.product.product
+            urns = [code.strip() for code in prod.provisioning_codes.split("\n")]
+            for urn in urns:
+                if urn.startswith("urn:ylp:"):
+                    prod_codes.append(urn)
+        return prod_codes
 
     def save(self, *args, **kwargs):
         super(Order, self).save(*args, **kwargs)
@@ -496,7 +506,7 @@ class Order(models.Model):
         OrderEvent.objects.create(order=self, action_type=event_type, event=event)
 
 class OrderItem(models.Model):
-    order = models.ForeignKey(Order)
+    order = models.ForeignKey(Order, related_name='items')
     product = models.ForeignKey(Listing)
     quantity = models.PositiveIntegerField(default=1)
     
