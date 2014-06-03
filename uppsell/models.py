@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from decimal import Decimal
+from collections import OrderedDict
 from django.db import models
 from django.utils.timezone import now
 from django.core.exceptions import ObjectDoesNotExist
@@ -110,6 +111,28 @@ ORDER_EVENT_TYPES = (
     ('fraud', 'Fraud Event'),
 )
 
+class Urn(object):
+    """Class for URNs in this format:
+    urn:NSID:NSSID:key1:val1:key2:val2
+    """
+    nsid, nssid, _props = None, None, None
+    def __init__(self, urn):
+        parts = urn.split(":")
+        try:
+            self.nsid, self.nssid = parts[1], parts[2]
+            offset, max, self._props = 3, len(parts), OrderedDict()
+            while offset < max:
+                try: self._props[parts[offset]] = parts[offset+1]
+                except IndexError: self._props[parts[offset]] = None
+                offset += 2
+        except IndexError:
+            pass
+    def __getitem__(self, item):
+        return self._props.get(item)
+    def __str__(self):
+        return "urn:%s:%s:%s" % (self.nsid, self.nssid, ":".join(["%s:%s"%(k,v) for k,v in self._props.items()]))
+    __repr__ = __str__
+
 class Customer(models.Model):
     username = models.CharField("Username", max_length=30, unique=True)
     title = models.CharField("Title", max_length=30, blank=True)
@@ -183,17 +206,6 @@ class LinkedAccount(models.Model):
     def __unicode__(self):
         return self.name
 
-class Channel(models.Model):
-    name = models.CharField(max_length=200)
-    created_at = models.DateTimeField('date created', auto_now_add=True)
-    updated_at = models.DateTimeField('date modifeid',  auto_now=True)
-
-    class Meta:
-        db_table = 'channels'
-
-    def __unicode__(self):
-        return self.name
-
 class Store(models.Model):
     code = models.CharField(max_length=200, unique=True)
     name = models.CharField(max_length=200)
@@ -243,9 +255,17 @@ class Product(models.Model):
     created_at = models.DateTimeField('date created', auto_now_add=True)
     updated_at = models.DateTimeField('date modified', auto_now=True)
     
+    @property
+    def provides(self):
+        prod_codes = []
+        for urn in [code.strip() for code in self.provisioning_codes.split("\n")]:
+            if urn.startswith("urn:ylp:"):
+                prod_codes.append(Urn(urn))
+        return prod_codes
+
     class Meta:
         db_table = 'products'
-
+    
     def __unicode__(self):
         return "%s: %s" % (self.sku, self.name)
 
@@ -474,6 +494,14 @@ class Order(models.Model):
             OrderEvent.objects.create(order=self, action_type="order", event="start")
             OrderEvent.objects.create(order=self, action_type="payment", event="start")
     
+    @property
+    def uses_shipping(self):
+        for order_item in OrderItem.objects.filter(order=self):
+            product = order_item.product.product
+            if product.shipping:
+                return True
+        return False
+
     @property
     def totals(self):
         shipping_total, sub_total, tax_total, total_total = 0, 0, 0, 0
