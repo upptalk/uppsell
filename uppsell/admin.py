@@ -109,7 +109,9 @@ class ProductModelForm(forms.ModelForm):
     provisioning_codes = forms.CharField(widget=forms.Textarea, required=False)
     features.widget.attrs["rows"] = 5
     description.widget.attrs["rows"] = 5
-    provisioning_codes.widget.attrs["rows"] = 3
+    provisioning_codes.widget.attrs["rows"] = 5
+    provisioning_codes.widget.attrs["cols"] = 100
+    provisioning_codes.widget.attrs["style"] = "margin: 0px; width: 400px; height: 60px;"
     class Meta:
         model = models.Product
 
@@ -190,7 +192,7 @@ class SalesTaxRateAdmin(admin.ModelAdmin):
 class ProductAdmin(admin.ModelAdmin):
     form = ProductModelForm
     list_display = ('sku', 'group', 'name')
-    
+    list_filter = ('group',)
     fieldsets = (
         (None, {
             'fields': ('sku', 'group', 'name', 'title', 'subtitle', ('description', 'features'))
