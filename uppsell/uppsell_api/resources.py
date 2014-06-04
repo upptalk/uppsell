@@ -179,7 +179,6 @@ class OrderResource(ModelResource):
             items[item.product.product.sku] = format_listing(item.product, item.quantity)
         result = {
             "order": format_order(order),
-            "items": items,
             "customer": order.customer,
         }
         return ok(self.label, result=result)
@@ -234,7 +233,6 @@ class OrderResource(ModelResource):
                 warnings.append["coupon_date_error"]
         return created(self.label, result={
             "order": format_order(order),
-            "items": items,
             "customer": customer}, warnings=warnings)
 
 class OrderItemResource(ModelResource):

@@ -696,6 +696,11 @@ def notify_order_on_payment_capture(signal, key, transition, sender, model, stat
         event="capture",
         comment="Order processing as payment captured")
 
+@post_transition("payment_state", Order, "capture", "captured")
+def generate_invoice(signal, key, transition, sender, model, state):
+    # TODO
+    pass
+
 #@post_transition("order_state", Order, "capture", "processing")
 #def notify_order_shipping(signal, key, transition, sender, model, state):
 #    """This callback occurs just after the payment

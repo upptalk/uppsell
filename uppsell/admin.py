@@ -228,9 +228,10 @@ class ProductAdmin(admin.ModelAdmin):
     
 class ListingAdmin(admin.ModelAdmin):
     form = ListingModelForm
-    list_display = ('product', 'state', 'show_price')
-    list_filter = ('state',)
+    list_display = ('product', 'store', 'state', 'show_price', 'show_shipping')
+    list_filter = ('store', 'state',)
     show_price = format_price_field('price', None)
+    show_shipping = format_decimal_field('shipping', None)
 
 class AddressAdmin(admin.ModelAdmin):
     list_display = ('customer', 'line1', 'city', 'country')
