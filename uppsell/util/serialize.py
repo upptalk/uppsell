@@ -6,6 +6,7 @@ from django.db.models import Model
 from django.db.models.base import ModelBase
 from django.db.models.query import QuerySet, ValuesQuerySet
 from django.db.models.fields.related import ManyToManyField
+from uppsell.models import Urn
 
 def model_to_dict(instance):
     """Like django.forms.models.model_to_dict, but returns everything
@@ -33,7 +34,7 @@ class UppsellJSONEncoder(json.JSONEncoder):
             return obj.isoformat()
         elif isinstance(obj, Decimal):
             return float(obj)
-        elif isinstance(obj, uuid.UUID):
+        elif isinstance(obj, Urn) or isinstance(obj, uuid.UUID):
             return str(obj)
         return json.JSONEncoder.default(self, obj)
 

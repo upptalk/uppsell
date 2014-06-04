@@ -25,7 +25,7 @@ def make_anonymous_customer():
     customer = models.Customer.objects.create(username=username)
     return customer
 
-def format_listing(store, listing, quantity = None):
+def format_listing(listing, quantity = None):
     prod_dict, listing_dict = model_to_dict(listing.product), model_to_dict(listing)
     prod_dict['price'] = listing_dict['price']
     prod_dict['shipping'] = listing_dict['shipping']
@@ -34,13 +34,13 @@ def format_listing(store, listing, quantity = None):
         if listing_dict[k].strip(): prod_dict[k] = listing_dict[k]
     prod_dict['features'] = [f for f in \
             [f.strip() for f in prod_dict['features'].split("\n")] if f]
-    prod_dict['provisioning_codes'] = [f for f in \
-            [f.strip() for f in prod_dict['provisioning_codes'].split("\n")] if f]
     if quantity is not None:
         prod_dict['quantity'] = quantity
     return prod_dict
 
 def format_order(order):
+    if not order:
+        return None
     order_dict = model_to_dict(order)
     if order.coupon:
         order_dict["coupon"] = order.coupon.code
@@ -49,6 +49,9 @@ def format_order(order):
     if order.shipping_address:
         order_dict["shipping_address"] = model_to_dict(order.shipping_address)
     order_dict["totals"] = order.totals
+    order_dict["items"] = OrderedDict([(item.product.product.sku, format_listing(item.product, item.quantity)) for item in order.items.all()])
+    order_dict["order_actions"] = order.order_actions
+    order_dict["payment_actions"] = order.payment_actions
     return order_dict
 
 class CardResource(ModelResource):
@@ -149,7 +152,7 @@ class ListingResource(ModelResource):
             listing = self.model.objects.get(store=store, product__sku=kwargs["sku"])
         except ObjectDoesNotExist:
             return not_found()
-        return ok(self.label, result=format_listing(store, listing))
+        return ok(self.label, result=format_listing(listing))
 
     def get_list(self, *args, **kwargs):
         try:
@@ -158,7 +161,7 @@ class ListingResource(ModelResource):
             return not_found()
         def get_listings(store):
             for listing in self.model.objects.filter(store=store):
-                formatted = format_listing(store, listing)
+                formatted = format_listing(listing)
                 yield formatted["sku"], formatted
         return ok(self.label, result=OrderedDict(get_listings(store)), meta=self._meta)
 
@@ -173,7 +176,7 @@ class OrderResource(ModelResource):
             return not_found()
         items = OrderedDict()
         for item in models.OrderItem.objects.filter(order=order):
-            items[item.product.product.sku] = format_listing(order.store, item.product, item.quantity)
+            items[item.product.product.sku] = format_listing(item.product, item.quantity)
         result = {
             "order": format_order(order),
             "items": items,
@@ -283,12 +286,13 @@ class OrderEventResource(ModelResource):
             order = models.Order.objects.get(pk=kwargs["id"])
         except ObjectDoesNotExist:
             return not_found()
+        action_type, event = request.POST.get("action_type"), request.POST.get("event")
         try:
             event = models.OrderEvent.objects.create(order=order,
-                action_type = request.POST.get("action_type"),    
-                event = request.POST.get("event"),    
-                comment = request.POST.get("comment"))
-            return created()
+                action_type = action_type,    
+                event = event,
+                comment = request.POST.get("comment", ""))
+            return created(result=event)
         except BadTransition:
             return bad_request()
 

@@ -9,6 +9,9 @@ from django.db.models.signals import post_save
 from django.db.models.fields import Field
 from uppsell.workflow import Workflow, BadTransition, pre_transition, post_transition
 from uppsell.exceptions import *
+from south.modelsinspector import add_introspection_rules
+
+add_introspection_rules([], [r"^uppsell\.models\.SeparatedValuesField"])
 
 ADDRESS_TYPES = ( # (type, description)
     ('billing', 'Billing'),
@@ -20,6 +23,7 @@ ORDER_STATES = ( # (order_state, description)
     ('processing', 'Processing'),
     ('shipping', 'Shipping'),
     ('completed', 'Completed'),
+    ('activated', 'Activated'),
     ('cancellation_requested', 'Cancellation Requested'),
     ('cancelled', 'Canceled'),
     ('hold', 'On Hold'),
@@ -32,6 +36,7 @@ ORDER_TRANSITIONS = ( # (order_transition, description)
     ('cancel', 'Cancel'),
     ('deny', 'Deny cancelation'),
     ('process', 'Process order'),
+    ('activate', 'Activate'),
 )
 ORDER_WORKFLOW = ( # (transition, state_before, state_after)
     ('start', 'init', 'pending_payment'),
@@ -41,6 +46,7 @@ ORDER_WORKFLOW = ( # (transition, state_before, state_after)
     ('ship', 'processing', 'shipping'),
     ('receive', 'shipping', 'completed'),
     ('process', 'processing', 'completed'),
+    ('activate', 'completed', 'activated'),
     ('cancel', 'completed', 'cancellation_requested'),
     ('deny', 'cancellation_requested', 'completed'),
     ('cancel', 'cancellation_requested', 'cancelled'),
@@ -129,9 +135,34 @@ class Urn(object):
             pass
     def __getitem__(self, item):
         return self._props.get(item)
-    def __str__(self):
+    def __unicode__(self):
         return "urn:%s:%s:%s" % (self.nsid, self.nssid, ":".join(["%s:%s"%(k,v) for k,v in self._props.items()]))
-    __repr__ = __str__
+    __repr__ = __unicode__
+
+class SeparatedValuesField(models.TextField):
+    __metaclass__ = models.SubfieldBase
+
+    def __init__(self, *args, **kwargs):
+        self.token = kwargs.pop('token', ',')
+        self.wrapper = kwargs.pop('wrapper', None)
+        super(SeparatedValuesField, self).__init__(*args, **kwargs)
+
+    def to_python(self, value):
+        if not value: return []
+        if isinstance(value, list):
+            return value
+        splitted = [item.strip() for item in value.split(self.token)]
+        if self.wrapper:
+            return [self.wrapper(val) for val in splitted if val !=""]
+        return [val for val in splitted if val !=""]
+
+    def get_db_prep_value(self, value, *args, **kwargs):
+        if not value: return
+        assert(isinstance(value, list) or isinstance(value, tuple))
+        return self.token.join([unicode(s) for s in value])
+
+    def value_to_string(self, obj):
+        value = self._get_val_from_obj(obj)
 
 class Customer(models.Model):
     username = models.CharField("Username", max_length=30, unique=True)
@@ -244,8 +275,8 @@ class Product(models.Model):
     sku = models.CharField(max_length=200)
     shipping = models.BooleanField("Uses shipping")
     has_stock = models.BooleanField("Uses stock control")
-    provisioning_codes = models.CharField(max_length=5000, blank=True, null=True,
-            help_text="Internal identifiers for service provisioning")
+    provisioning_codes = SeparatedValuesField(max_length=5000, token="\n", wrapper=Urn,
+            blank=True, null=True, help_text="Internal identifiers for service provisioning")
     name = models.CharField(max_length=200, help_text="Internal name of product")
     title = models.CharField(max_length=200)
     subtitle = models.CharField(max_length=200)
@@ -255,14 +286,6 @@ class Product(models.Model):
     created_at = models.DateTimeField('date created', auto_now_add=True)
     updated_at = models.DateTimeField('date modified', auto_now=True)
     
-    @property
-    def provides(self):
-        prod_codes = []
-        for urn in [code.strip() for code in self.provisioning_codes.split("\n")]:
-            if urn.startswith("urn:ylp:"):
-                prod_codes.append(Urn(urn))
-        return prod_codes
-
     class Meta:
         db_table = 'products'
     
@@ -297,6 +320,13 @@ class Listing(models.Model):
     description = models.CharField("Description", max_length=10000, blank=True, null=True)
     features = models.CharField(max_length=10000, blank=True, null=True)
     
+    @property
+    def provisioning_codes(self):
+        return self.product.provisioning_codes
+    @property
+    def sku(self):
+        return self.product.sku
+
     class Meta:
         db_table = 'listings'
         verbose_name = 'Listing'
@@ -479,14 +509,10 @@ class Order(models.Model):
         return str(self.id).rjust(8, "0")
     
     def get_provisioning_codes(self):
-        prod_codes = []
+        provisioning_codes = []
         for item in self.items.all():
-            prod = item.product.product
-            urns = [code.strip() for code in prod.provisioning_codes.split("\n")]
-            for urn in urns:
-                if urn.startswith("urn:ylp:"):
-                    prod_codes.append(urn)
-        return prod_codes
+            provisioning_codes.extend(item.product.product.provisioning_codes)
+        return provisioning_codes
 
     def save(self, *args, **kwargs):
         super(Order, self).save(*args, **kwargs)
@@ -494,6 +520,13 @@ class Order(models.Model):
             OrderEvent.objects.create(order=self, action_type="order", event="start")
             OrderEvent.objects.create(order=self, action_type="payment", event="start")
     
+    def can_transition(self, action_type, event):
+        if action_type == "order":
+            return self.order_workflow.can(event)
+        elif action_type == "payment":
+            return self.payment_workflow.can(event)
+        return False
+
     @property
     def uses_shipping(self):
         for order_item in OrderItem.objects.filter(order=self):
@@ -530,6 +563,14 @@ class Order(models.Model):
             self._payment_workflow = Workflow(self, u"payment_state", PAYMENT_WORKFLOW)
         return self._payment_workflow
     
+    @property
+    def order_actions(self):
+        return [str(action) for action in self.order_workflow.available]
+
+    @property
+    def payment_actions(self):
+        return [str(action) for action in self.payment_workflow.available]
+
     def event(self, event_type, event):
         OrderEvent.objects.create(order=self, action_type=event_type, event=event)
 
@@ -538,6 +579,13 @@ class OrderItem(models.Model):
     product = models.ForeignKey(Listing)
     quantity = models.PositiveIntegerField(default=1)
     
+    @property
+    def provisioning_codes(self):
+        return self.product.product.provisioning_codes
+    @property
+    def sku(self):
+        return self.product.product.sku
+
     class Meta:
         db_table = 'order_items'
 
@@ -647,4 +695,14 @@ def notify_order_on_payment_capture(signal, key, transition, sender, model, stat
         action_type="order", 
         event="capture",
         comment="Order processing as payment captured")
+
+#@post_transition("order_state", Order, "capture", "processing")
+#def notify_order_shipping(signal, key, transition, sender, model, state):
+#    """This callback occurs just after the payment
+#    moves from pending to captured"""
+#    if model.uses_shipping:
+#        OrderEvent.objects.create(order=model,
+#            action_type="order", 
+#            event="ship",
+#            comment="Order uses shipping")
 

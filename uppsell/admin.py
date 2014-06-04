@@ -34,6 +34,30 @@ def format_price_field(fieldname, short_description=None):
     return formatter
 
 #====================================================================================
+# Widgets
+#====================================================================================
+
+class SeparatedValuesWidget(forms.Textarea):
+    def __init__(self, *args, **kwargs):
+        self.token = kwargs.get("token", "\n")
+        super(SeparatedValuesWidget, self).__init__(*args, **kwargs)
+
+    def value_from_datadict(self, data, files, name):
+        # Return a string of comma separated integers since the database, and
+        # field expect a string (not a list).
+        return self.token.join(data.getlist(name))
+
+    def render(self, name, value, attrs=None):
+        # Convert comma separated integer string to a list, since the checkbox
+        # rendering code expects a list (not a string)
+        if value:
+            value = self.token.join([unicode(val) for val in value])
+        return super(SeparatedValuesWidget, self).render(
+            name, value, attrs=attrs
+        )
+
+
+#====================================================================================
 # Event handlers
 #====================================================================================
 
@@ -106,7 +130,7 @@ class ListingModelForm(forms.ModelForm):
 class ProductModelForm(forms.ModelForm):
     features = forms.CharField(widget=forms.Textarea, required=False)
     description = forms.CharField(widget=forms.Textarea, required=False)
-    provisioning_codes = forms.CharField(widget=forms.Textarea, required=False)
+    provisioning_codes = forms.CharField(widget=SeparatedValuesWidget, required=False)
     features.widget.attrs["rows"] = 5
     description.widget.attrs["rows"] = 5
     provisioning_codes.widget.attrs["rows"] = 5
@@ -198,10 +222,10 @@ class ProductAdmin(admin.ModelAdmin):
             'fields': ('sku', 'group', 'name', 'title', 'subtitle', ('description', 'features'))
         }),
         ('Stock and shipping', {
-            'fields': ('shipping', 'has_stock', 'stock_units', 'provisioning_codes')
+            'fields': ('shipping', 'has_stock', 'stock_units', 'provisioning_codes',)
         }),
     )
-
+    
 class ListingAdmin(admin.ModelAdmin):
     form = ListingModelForm
     list_display = ('product', 'state', 'show_price')
