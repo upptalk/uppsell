@@ -1,7 +1,7 @@
 # UPPSELL
 
-A Python-Flask API to business objects relating to e-commerce and a django-backed
-admin for managing them.
+A django-based Restful API for business objects relating to e-commerce
+and an admin for managing them.
 
 ## Features
 
