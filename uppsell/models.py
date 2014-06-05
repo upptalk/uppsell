@@ -621,8 +621,8 @@ class OrderEvent(models.Model):
 class Invoice(models.Model):
     order_id = models.IntegerField(unique=True) # non-relational
     store_id = models.IntegerField() # non-relational
-    transaction_id = models.CharField(max_length=200)
-    payment_state = models.CharField(max_length=50)
+    transaction_id = models.CharField(max_length=200, blank=True)
+    payment_state = models.CharField(max_length=50, blank=True)
     order_total = models.DecimalField(max_digits=8, decimal_places=2)
     order_sub_total = models.DecimalField(max_digits=8, decimal_places=2)
     order_tax_total = models.DecimalField(max_digits=8, decimal_places=2)
@@ -630,13 +630,13 @@ class Invoice(models.Model):
     currency = models.CharField(max_length=3)
     user_fullname = models.CharField(max_length=100)
     upptalk_username = models.CharField(max_length=100)
-    shipping_address = models.CharField(max_length=1000)
+    shipping_address = models.CharField(max_length=1000, blank=True)
     billing_address = models.CharField(max_length=1000)
     user_mobile_msisdn = models.CharField(max_length=200)
     user_email = models.CharField(max_length=200)
     payment_made_ts = models.DateTimeField('timestamp payment captured')
     created_at = models.DateTimeField('timestamp created', auto_now_add=True)
-    coupon = models.CharField(max_length=1000)
+    coupon = models.CharField(max_length=1000, blank=True, null=True)
     proudcts = models.CharField(max_length=2000)
     
     # where do I get this from?
