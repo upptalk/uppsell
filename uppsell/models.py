@@ -674,22 +674,24 @@ class Invoice(models.Model):
         user_mobile_msisdn = customer.phone
         user_email = customer.email
         payment_made_ts = order.payment_made_ts
-        created_at = order.create_at
+        created_at = order.created_at
         if order.coupon:
             coupon = encode(order.coupon)
         products = {}
         for order_item in OrderItem.objects.get(order=order):
             listing = order_item.product
-            products[listing.id] = {}
-            products[listing.id]['product'] = encode(listing.product)
-            products[listing.id]['tax_rate'] = listing.tax_rate
-            products[listing.id]['price'] = listing.price
-            products[listing.id]['shipping'] = listing.shipping
-            products[listing.id]['name'] = listing.name
-            products[listing.id]['title'] = listing.title
-            products[listing.id]['subtitle'] = listing.subtitle
-            products[listing.id]['description'] = listing.description
-            products[listing.id]['features'] = listing.features
+            products['listing_'+listing.id] = {}
+            products['listing_'+listing.id]['store'] = listing.store
+            products['listing_'+listing.id]['product'] = encode(listing.product)
+            products['listing_'+listing.id]['tax_rate'] = listing.tax_rate
+            products['listing_'+listing.id]['state'] = listing.state
+            products['listing_'+listing.id]['price'] = listing.price
+            products['listing_'+listing.id]['shipping'] = listing.shipping
+            products['listing_'+listing.id]['name'] = listing.name
+            products['listing_'+listing.id]['title'] = listing.title
+            products['listing_'+listing.id]['subtitle'] = listing.subtitle
+            products['listing_'+listing.id]['description'] = listing.description
+            products['listing_'+listing.id]['features'] = listing.features
 
     class Meta:
         db_table = 'invoices'
