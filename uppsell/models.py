@@ -10,6 +10,7 @@ from django.db.models.fields import Field
 from uppsell.workflow import Workflow, BadTransition, pre_transition, post_transition
 from uppsell.exceptions import *
 from south.modelsinspector import add_introspection_rules
+from django.core import serializers
 
 add_introspection_rules([], [r"^uppsell\.models\.SeparatedValuesField"])
 
@@ -620,28 +621,77 @@ class OrderEvent(models.Model):
 class Invoice(models.Model):
     order_id = models.IntegerField(unique=True) # non-relational
     store_id = models.IntegerField() # non-relational
-    product_id = models.IntegerField() # non-relational
-    psp_id = models.IntegerField() # non-relational
-    
-    psp_type = models.CharField(max_length=200)
-    user_jid = models.CharField(max_length=200)
-    transaction_id = models.CharField(max_length=200)
-    psp_type = models.CharField(max_length=200)
-    quantity = models.IntegerField(default=0)
+    transaction_id = models.CharField(max_length=200, blank=True)
+    payment_state = models.CharField(max_length=50, blank=True)
     order_total = models.DecimalField(max_digits=8, decimal_places=2)
+    order_sub_total = models.DecimalField(max_digits=8, decimal_places=2)
+    order_tax_total = models.DecimalField(max_digits=8, decimal_places=2)
     order_shipping_total = models.DecimalField(max_digits=8, decimal_places=2)
     currency = models.CharField(max_length=3)
-
-    user_fullname = models.CharField(max_length=1000)
-    shipping_address = models.CharField(max_length=1000)
+    user_fullname = models.CharField(max_length=100)
+    upptalk_username = models.CharField(max_length=100)
+    shipping_address = models.CharField(max_length=1000, blank=True)
     billing_address = models.CharField(max_length=1000)
     user_mobile_msisdn = models.CharField(max_length=200)
     user_email = models.CharField(max_length=200)
-    psp_response_code = models.CharField(max_length=200)
-    psp_response_text = models.CharField(max_length=10000)
-    
     payment_made_ts = models.DateTimeField('timestamp payment captured')
     created_at = models.DateTimeField('timestamp created', auto_now_add=True)
+    coupon = models.CharField(max_length=1000, blank=True, null=True)
+    proudcts = models.CharField(max_length=2000)
+    
+    # where do I get this from?
+    #psp_id = models.IntegerField() # non-relational
+    #psp_response_code = models.CharField(max_length=200)
+    #psp_response_text = models.CharField(max_length=10000)
+    #psp_type = models.CharField(max_length=200)
+    
+    # JSON encoder
+    @staticmethod
+    def encode(data):
+        return serializers.serialize('json', [data])
+
+    @staticmethod
+    def generate_invoice(self, order):
+        # get related objects and data
+        customer = order.customer
+        totals   = order.totals
+
+        # fill up fields
+        order_id = order.id
+        store_id = order.store.id
+        transaction_id = order.transaction_id
+        payment_state = order.payment_state
+        order_total = totals['total_total']
+        order_sub_total = totals['sub_total']
+        order_tax_total = totals['tax_total']
+        order_shipping_total = totals['shipping_total']
+        currency = order.currency
+        user_full_name = customer.fullname 
+        upptalk_username = customer.username
+        if order.shipping_address:
+            shipping_address = encode(order.shipping_address)
+        billing_address = encode(order.billing_address)
+        user_mobile_msisdn = customer.phone
+        user_email = customer.email
+        payment_made_ts = order.payment_made_ts
+        created_at = order.created_at
+        if order.coupon:
+            coupon = encode(order.coupon)
+        products = {}
+        for order_item in OrderItem.objects.get(order=order):
+            listing = order_item.product
+            products['listing_'+listing.id] = {}
+            products['listing_'+listing.id]['store'] = listing.store
+            products['listing_'+listing.id]['product'] = encode(listing.product)
+            products['listing_'+listing.id]['tax_rate'] = listing.tax_rate
+            products['listing_'+listing.id]['state'] = listing.state
+            products['listing_'+listing.id]['price'] = listing.price
+            products['listing_'+listing.id]['shipping'] = listing.shipping
+            products['listing_'+listing.id]['name'] = listing.name
+            products['listing_'+listing.id]['title'] = listing.title
+            products['listing_'+listing.id]['subtitle'] = listing.subtitle
+            products['listing_'+listing.id]['description'] = listing.description
+            products['listing_'+listing.id]['features'] = listing.features
 
     class Meta:
         db_table = 'invoices'
