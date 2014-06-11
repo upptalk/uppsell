@@ -194,14 +194,15 @@ class OrderResource(ModelResource):
         for prop, val in POST.items():
             if prop not in self.immutable_fields:
                 setattr(order, prop, val)
-        models.OrderItem.objects.filter(order=order).delete()
-        items = []
-        for sku, qty in POST.get("items", {}).items():
-            try:
-                listing = models.Listing.objects.get(store=order.store, product__sku=sku)
-                items.append(models.OrderItem.objects.create(order=order, product=listing, quantity=qty))
-            except ObjectDoesNotExist:
-                pass
+        if POST.get("items"):
+            models.OrderItem.objects.filter(order=order).delete()
+            items = []
+            for sku, qty in POST.get("items", {}).items():
+                try:
+                    listing = models.Listing.objects.get(store=order.store, product__sku=sku)
+                    items.append(models.OrderItem.objects.create(order=order, product=listing, quantity=qty))
+                except ObjectDoesNotExist:
+                    pass
         order.save()
         if POST.get("coupon") and not order.coupon:
             try:
