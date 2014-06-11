@@ -91,7 +91,7 @@ class OrderItemInline(admin.TabularInline):
     model = models.OrderItem
     extra = 0
     can_delete = False
-    fields = ('product','quantity',)
+    fields = ('sku','product','quantity',)
     readonly_fields  = fields
 
 class CustomerOrderInline(admin.TabularInline):
@@ -151,9 +151,12 @@ class OrderAdmin(admin.ModelAdmin):
     list_display = ('id', 'show_store', 'show_customer', 'order_state', 'payment_state', 'action_pulldown')
     list_filter = ('store', 'order_state', 'payment_state')
     #actions = order_actions
-    fields = ('store', 'customer', "transaction_id", "shipping_address", "billing_address",
-            "currency", 'order_state', 'payment_state', 'coupon')
-    readonly_fields = ('order_state', 'payment_state', 'customer', 'store',"shipping_address", "billing_address",)
+    fields = ('store', 'customer', "transaction_id", "shipping_address",
+            "billing_address", "currency", 'order_state', 'payment_state',
+            'coupon', 'payment_made_ts', 'created_at', 'updated_at',)
+    readonly_fields = ('order_state', 'payment_state', 'customer', 'store',
+            "shipping_address", "billing_address", 'payment_made_ts',
+            'created_at', 'updated_at',)
     inlines = (OrderItemInline,OrderEventInline,)
     
     def get_urls(self):

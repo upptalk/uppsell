@@ -36,6 +36,7 @@ def format_listing(listing, quantity = None):
             [f.strip() for f in prod_dict['features'].split("\n")] if f]
     if quantity is not None:
         prod_dict['quantity'] = quantity
+    prod_dict['cost'] = listing.get_cost(quantity)
     return prod_dict
 
 def format_order(order):
@@ -167,7 +168,7 @@ class ListingResource(ModelResource):
 
 class OrderResource(ModelResource):
     model = models.Order
-    immutable_fields = ('order_state', 'payment_state', 'fraud_state', 'store', 'customer',)
+    immutable_fields = ('order_state', 'payment_state', 'fraud_state', 'store', 'customer','items','coupon')
 
     def get_item(self, request, id):
         try:
@@ -184,12 +185,34 @@ class OrderResource(ModelResource):
         return ok(self.label, result=result)
     
     def put_item(self, request, id):
-        POST = QueryDict(request.body)
-        order = self.model.objects.get(id=id)
+        POST = json.loads(request.body)
+        print POST
+        try:
+            order = self.model.objects.get(id=id)
+        except ObjectDoesNotExist:
+            return not_found()
         for prop, val in POST.items():
             if prop not in self.immutable_fields:
                 setattr(order, prop, val)
+        models.OrderItem.objects.filter(order=order).delete()
+        items = []
+        for sku, qty in POST.get("items", {}).items():
+            try:
+                listing = models.Listing.objects.get(store=order.store, product__sku=sku)
+                items.append(models.OrderItem.objects.create(order=order, product=listing, quantity=qty))
+            except ObjectDoesNotExist:
+                pass
         order.save()
+        if POST.get("coupon") and not order.coupon:
+            try:
+                coupon = models.Coupon.objects.get(code=POST["coupon"])
+                coupon.spend(order.customer, order)
+            except ObjectDoesNotExist:
+                return bad_request("bad_coupon", result=order)
+            except CouponDateError:
+                return bad_request("coupon_date_error", result=order)
+            except CouponDoubleSpendError:
+                return bad_request("coupon_double_spend", result=order)
         return ok(self.label, result=order)
 
     def post_list(self, request, *args, **kwargs):

@@ -327,6 +327,15 @@ class Listing(models.Model):
     @property
     def sku(self):
         return self.product.sku
+    
+    def get_cost(self, quantity = 1, tax_rate = None):
+        """Calculate item cost with tax included"""
+        if tax_rate is None:
+            tax_rate = self.tax_rate.rate
+        if quantity is None:
+            quantity = 1
+        tax_mul = tax_rate + Decimal(1.0)           
+        return round(self.price * quantity * tax_mul, 2)
 
     class Meta:
         db_table = 'listings'
@@ -463,6 +472,10 @@ class Coupon(models.Model):
         if order:
             order.coupon = self
             order.save()
+    
+    def __unicode__(self):
+        return self.code
+    
 
 class CouponSpend(models.Model):
     customer = models.ForeignKey(Customer)
@@ -486,11 +499,11 @@ class Order(models.Model):
     
     order_state = models.CharField(max_length=30, choices=ORDER_STATES, default="init")
     payment_state = models.CharField(max_length=30, choices=PAYMENT_STATES, default="init")
-    fraud_state = models.CharField(max_length=30)
+    fraud_state = models.CharField(max_length=30, blank=True, null=True)
     
-    coupon = models.ForeignKey(Coupon, null=True)
+    coupon = models.ForeignKey(Coupon, blank=True, null=True)
     
-    transaction_id = models.CharField(max_length=200, blank=True)
+    transaction_id = models.CharField(max_length=200, blank=True, null=True)
     shipping_address = models.ForeignKey(Address, related_name="shipping_address", null=True, blank=True)
     billing_address = models.ForeignKey(Address, related_name="billing_address", null=True, blank=True)
 
