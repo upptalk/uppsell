@@ -650,7 +650,7 @@ class Invoice(models.Model):
     payment_made_ts = models.DateTimeField('timestamp payment captured')
     created_at = models.DateTimeField('timestamp created', auto_now_add=True)
     coupon = models.CharField(max_length=1000, blank=True, null=True)
-    proudcts = models.CharField(max_length=2000)
+    products = models.CharField(max_length=2000)
     
     # where do I get this from?
     #psp_id = models.IntegerField() # non-relational
@@ -664,7 +664,7 @@ class Invoice(models.Model):
         return serializers.serialize('json', [data])
 
     @staticmethod
-    def generate_invoice(self, order):
+    def generate_invoice(order):
         # get related objects and data
         customer = order.customer
         totals   = order.totals
@@ -679,23 +679,27 @@ class Invoice(models.Model):
         order_tax_total = totals['tax_total']
         order_shipping_total = totals['shipping_total']
         currency = order.currency
-        user_full_name = customer.fullname 
+        user_fullname = customer.full_name 
         upptalk_username = customer.username
         if order.shipping_address:
-            shipping_address = encode(order.shipping_address)
-        billing_address = encode(order.billing_address)
+            shipping_address = Invoice.encode(order.shipping_address)
+        else:
+            shipping_address = ""
+        billing_address = Invoice.encode(order.billing_address)
         user_mobile_msisdn = customer.phone
         user_email = customer.email
         payment_made_ts = order.payment_made_ts
         created_at = order.created_at
         if order.coupon:
-            coupon = encode(order.coupon)
+            coupon = Invoice.encode(order.coupon)
+        else:
+            coupon = ""
         products = {}
-        for order_item in OrderItem.objects.get(order=order):
+        for order_item in OrderItem.objects.filter(order=order):
             listing = order_item.product
             products['listing_'+listing.id] = {}
             products['listing_'+listing.id]['store'] = listing.store
-            products['listing_'+listing.id]['product'] = encode(listing.product)
+            products['listing_'+listing.id]['product'] = Invoice.encode(listing.product)
             products['listing_'+listing.id]['tax_rate'] = listing.tax_rate
             products['listing_'+listing.id]['state'] = listing.state
             products['listing_'+listing.id]['price'] = listing.price
@@ -705,6 +709,29 @@ class Invoice(models.Model):
             products['listing_'+listing.id]['subtitle'] = listing.subtitle
             products['listing_'+listing.id]['description'] = listing.description
             products['listing_'+listing.id]['features'] = listing.features
+        products = str(products)
+        inv = Invoice(
+            order_id=order_id,
+            store_id=store_id,
+            transaction_id=transaction_id,
+            payment_state=payment_state,
+            order_total=order_total,
+            order_sub_total=order_sub_total,
+            order_tax_total=order_tax_total,
+            order_shipping_total=order_shipping_total,
+            currency=currency,
+            user_fullname=user_fullname,
+            upptalk_username=upptalk_username,
+            billing_address=billing_address,
+            user_mobile_msisdn=user_mobile_msisdn,
+            user_email=user_email,
+            payment_made_ts=str(payment_made_ts),
+            created_at=str(created_at),
+            coupon=coupon,
+            products=products,
+        )
+        inv.save()
+        return inv.id
 
     class Meta:
         db_table = 'invoices'
