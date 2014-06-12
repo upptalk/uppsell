@@ -11,7 +11,7 @@ def pre_transition(on_key, on_model, on_transition=ALL, on_state=ALL):
     def decorator(func):
         @wraps(func, assigned=available_attrs(func))
         def inner(signal, key, transition, sender, model, state, **kwargs):
-            if model.__class__ == on_model and on_transition in (transition, ALL) and on_state in (state, ALL):
+            if key == on_key and model.__class__ == on_model and on_transition in (transition, ALL) and on_state in (state, ALL):
                    return func(signal, key, transition, sender, model, state)
         pre_transition_signal.connect(inner)
         return inner
@@ -21,7 +21,7 @@ def post_transition(on_key, on_model, on_transition=ALL, on_state=ALL):
     def decorator(func):
         @wraps(func, assigned=available_attrs(func))
         def inner(signal, key, transition, sender, model, state, **kwargs):
-            if model.__class__ == on_model and on_transition in (transition, ALL) and on_state in (state, ALL):
+            if key == on_key and model.__class__ == on_model and on_transition in (transition, ALL) and on_state in (state, ALL):
                    return func(signal, key, transition, sender, model, state)
         post_transition_signal.connect(inner)
         return inner
