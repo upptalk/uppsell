@@ -67,7 +67,24 @@ class StoreResource(ModelResource):
 
 class CustomerResource(ModelResource):
     model = models.Customer
-    
+   
+    def post_list(self, request, *args, **kwargs):
+        """Create a new address"""
+        try:
+            existing = models.Customer.objects.get(username=request.POST.get("username"))
+            return conflict("Customer already exists", result=existing)
+        except ObjectDoesNotExist:
+            pass
+        try:
+            customer = models.Customer()
+            for prop, val in request.POST.items():
+                if prop not in self.immutable_fields:
+                    setattr(customer, prop, val)
+            customer.save()
+        except IntegrityError:
+            return conflict("Customer already exists")
+        return created(result=customer)
+
 class CustomerAddressResource(ModelResource):
     required_params = ['customer__id']
     model = models.Address

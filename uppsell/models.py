@@ -590,7 +590,6 @@ class Order(models.Model):
             return self._totals
         shipping_total, tax_total, sub_total, gross_total = 0, 0, 0, 0
         for product, quantity, net, gross, tax, shipping in self.get_costs():
-            print "***", quantity, net, gross, tax, shipping
             shipping_total += shipping
             sub_total += net
             tax_total += tax

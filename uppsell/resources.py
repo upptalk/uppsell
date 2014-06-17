@@ -92,22 +92,27 @@ class ModelResource(Resource):
         return ok(self.label, result=instance)
     
     def put_list(self, request, *args, **kwargs):
-        if not self.allow_put_item:
-            return method_not_allowed()
+        return method_not_allowed()
     
     def post_item(self, request, *args, **kwargs):
-        if not self.allow_post_item:
-            return method_not_allowed()
+        return method_not_allowed()
     
     def post_list(self, request, *args, **kwargs):
         if not self.allow_post_list:
             return method_not_allowed()
+        try:
+            instance = self.model()
+            for prop, val in request.POST.items():
+                if prop not in self.immutable_fields:
+                    setattr(instance, prop, val)
+            instance.save()
+        except IntegrityError:
+            return conflict("Item already exists")
+        return created(result=instance)
     
     def delete_item(self, request, *args, **kwargs):
-        if not self.allow_delete_item:
-            return method_not_allowed()
-    
+        return method_not_allowed()
+
     def delete_list(self, request, *args, **kwargs):
-        if not self.allow_delete_list:
-            return method_not_allowed()
+        return method_not_allowed()
 

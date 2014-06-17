@@ -219,7 +219,7 @@ class SalesTaxRateAdmin(admin.ModelAdmin):
 
 class ProductAdmin(admin.ModelAdmin):
     form = ProductModelForm
-    list_display = ('sku', 'group', 'name')
+    list_display = ('sku', 'group', 'name', 'show_pvcs')
     list_filter = ('group',)
     fieldsets = (
         (None, {
@@ -229,6 +229,13 @@ class ProductAdmin(admin.ModelAdmin):
             'fields': ('shipping', 'has_stock', 'stock_units', 'provisioning_codes',)
         }),
     )
+    
+    def show_pvcs(self, obj):
+        if obj.provisioning_codes:
+            return "<br>".join([str(pc) for pc in obj.provisioning_codes])
+        return str(obj.provisioning_codes)
+    show_pvcs.allow_tags=True
+    show_pvcs.short_description = "Provisioning Codes"
     
 class ListingAdmin(admin.ModelAdmin):
     form = ListingModelForm
