@@ -473,6 +473,16 @@ class Coupon(models.Model):
             order.coupon = self
             order.save()
     
+    def get_discount_price(self, price):
+        if self.type == "pct_discount":
+            multiplier = Decimal(0.01) * self.discount_amount
+            discounted = multiplier * price
+            return max(0, discounted)
+        elif self.coupon.type == "fixed_discount":
+            discounted = price - self.coupon.discount_amount
+            return max(0, discounted)
+        return price
+
     def __unicode__(self):
         return self.code
     
@@ -548,23 +558,74 @@ class Order(models.Model):
             if product.shipping:
                 return True
         return False
+    
+    _totals = None
+    _costs = None
+    
+    def get_net_gross_tax(self, listing, quantity = 1):
+        """Return tuple (net_price, tax_amount, gross_price)"""
+        net = listing.price * quantity
+        tax = net * listing.tax_rate.rate
+        gross = net + tax
+        return net, gross, tax
+    
+    def get_costs(self):
+        """Produce a short summary of various costs associated with order
+        Returns a generator where each item is the followign tuple:
+        (product, quantity, net_amount, gross_amount, tax_amount, shipping_amount)
+        """
+        if self._costs is not None:
+            return self._costs
+        self._costs = []
+        for order_item in OrderItem.objects.filter(order=self):
+            listing, quantity = order_item.product, order_item.quantity
+            shipping = listing.shipping * quantity
+            net, gross, tax = self.get_net_gross_tax(listing, order_item.quantity)
+            self._costs.append((listing.product, quantity, net, gross, tax, shipping))
+        return self._costs
 
     @property
     def totals(self):
-        shipping_total, sub_total, tax_total, total_total = 0, 0, 0, 0
-        for order_item in OrderItem.objects.filter(order=self):
-            listing, qty = order_item.product, order_item.quantity
-            tax = listing.price * listing.tax_rate.rate * qty
-            cost = (listing.price * qty) + tax
-            shipping_total += listing.shipping * qty
-            sub_total += listing.price * qty
+        if self._totals is not None:
+            return self._totals
+        shipping_total, tax_total, sub_total, gross_total = 0, 0, 0, 0
+        for product, quantity, net, gross, tax, shipping in self.get_costs():
+            print "***", quantity, net, gross, tax, shipping
+            shipping_total += shipping
+            sub_total += net
             tax_total += tax
-            total_total = total_total + cost + listing.shipping
-        return {"shipping_total": round(shipping_total, 2),
-                "sub_total": round(sub_total, 2),
-                "tax_total": round(tax_total, 2),
-                "total_total": round(total_total, 2)}
-
+            gross_total += gross
+        self._totals = {
+            "sub_total": round(sub_total, 2),
+            "shipping_total": round(shipping_total, 2),
+            "tax_total": round(tax_total, 2),
+            "gross_total": round(gross_total, 2),
+            "discount_total": Decimal(0.0),
+            "total_total": round(gross_total+shipping_total, 2)}
+        coupon_base = self.get_coupon_base(gross_total)
+        if coupon_base:
+            discount_total = self.coupon.get_discount_price(coupon_base)
+            total_total = gross_total - discount_total
+            self._totals["discount_total"] = round(discount_total, 2)
+            self._totals["total_total"] = round(total_total+shipping_total, 2)
+        return self._totals
+    
+    def get_coupon_base(self, order_gross_total = 0):
+        if not self.coupon:
+            return None
+        if self.coupon.customer and self.coupon.customer != self.customer:
+            return None
+        costs = self.get_costs()
+        if self.coupon.product:
+            for product, _, _, gross, _, _ in costs:
+                if product == self.coupon.product:
+                    return gross
+        if self.coupon.product_group:
+            for product, _, _, gross, _, _ in costs:
+                if product.group == self.coupon.product_group:
+                    return gross
+        return order_gross_total
+            
     @property
     def order_workflow(self):
         if self._order_workflow is None:
@@ -602,6 +663,9 @@ class OrderItem(models.Model):
 
     class Meta:
         db_table = 'order_items'
+    
+    def __unicode__(self):
+        return '%d * %s' % (self.quantity, self.product.product.sku)
 
 class OrderEvent(models.Model):
     order = models.ForeignKey(Order)

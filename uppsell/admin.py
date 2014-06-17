@@ -145,8 +145,9 @@ class ProductModelForm(forms.ModelForm):
 
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ('username', 'full_name', 'email', 'created_at')
+    search_fields = ['username']
     inlines = (CustomerOrderInline,CustomerAddressInline)
-
+    
 class OrderAdmin(admin.ModelAdmin):
     list_display = ('id', 'show_store', 'show_customer', 'order_state', 'payment_state', 'action_pulldown')
     list_filter = ('store', 'order_state', 'payment_state')
