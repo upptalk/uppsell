@@ -199,6 +199,7 @@ class Address(models.Model):
     city = models.CharField("City", max_length=255)
     zip = models.CharField("Zip or Post Code", max_length=255, blank=True)
     province = models.CharField("State, Province or County", max_length=255, blank=True)
+    province_code = models.CharField("Province Code", max_length=10, null=True, blank=True)
     country = models.CharField("Country", max_length=255)
     country_code = models.CharField("Country Code", max_length=3)
     other = models.CharField("Other Details", max_length=255)
