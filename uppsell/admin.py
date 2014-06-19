@@ -108,6 +108,13 @@ class CustomerAddressInline(admin.TabularInline):
     fields = ('line1', 'city', 'zip', 'country_code')
     readonly_fields  = fields
 
+class OrderCustomerInline(admin.StackedInline):
+    model = models.Customer
+    extra = 0
+    can_delete = False
+    fields = ('username', 'full_name', 'phone', 'email')
+    readonly_fields  = fields
+
 # ====================================================================================
 # FORMS
 # ====================================================================================
@@ -146,16 +153,16 @@ class ProductModelForm(forms.ModelForm):
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ('username', 'full_name', 'email', 'created_at')
     search_fields = ['username']
-    inlines = (CustomerOrderInline,CustomerAddressInline)
+    inlines = (CustomerAddressInline,CustomerOrderInline,)
     
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('id', 'show_store', 'show_customer', 'order_state', 'payment_state', 'action_pulldown')
+    list_display = ('id', 'show_store', 'show_customer', 'order_state', 'created_at')
     list_filter = ('store', 'order_state', 'payment_state')
     #actions = order_actions
     fields = ('store', 'customer', "transaction_id", "shipping_address",
             "billing_address", "currency", 'order_state', 'payment_state',
             'coupon', 'payment_made_ts', 'created_at', 'updated_at',)
-    readonly_fields = ('order_state', 'payment_state', 'customer', 'store',
+    readonly_fields = ("transaction_id", 'order_state', 'payment_state', 'customer', 'store',
             "shipping_address", "billing_address", 'payment_made_ts',
             'created_at', 'updated_at',)
     inlines = (OrderItemInline,OrderEventInline,)
@@ -208,11 +215,31 @@ class OrderAdmin(admin.ModelAdmin):
     show_store.short_description = "Store"
 
     def show_customer(self, obj):
-        if obj.customer:
-            return '<a href="/uppsell/customer/%s">%s</a>' % (obj.customer.id, obj.customer)
-        return ""
+        if not obj.customer:
+            return "No customer"
+        base = '/admin/uppsell/customer'
+        if obj.customer.full_name not in (None, ""):
+            link = '<a href="%s/%s">%s</a>' % (base, obj.customer.id, obj.customer.full_name)
+        else:
+            link = '<a href="%s/%s">%s</a>' % (base, obj.customer.id, obj.customer)
+        if obj.customer.email in (None, ""):
+            return link
+        return "%s (%s)" % (link, obj.customer.email)
     show_customer.allow_tags = True
     show_customer.short_description = "Customer"
+    
+    def show_email(self, obj):
+        if not obj.customer:
+            return ""
+        return obj.customer.email
+    show_email.allow_tags = True
+    show_email.short_description = "Email"
+    
+    def show_items(self, obj):
+        items = models.OrderItem.objects.filter(id=obj.id)
+        return "<br/>".join([str(item) for item in items])
+    show_items.allow_tags = True
+    show_items.short_description = "Items"
 
 class SalesTaxRateAdmin(admin.ModelAdmin):
     list_display = ('name', 'store', 'abbreviation', 'rate')
