@@ -51,7 +51,6 @@ def method_not_allowed(message="Method not allowed", *args, **kwargs):
     return error(405, message, **kwargs)
 
 def conflict(message="There was a conflict", *args, **kwargs):
-    print kwargs
     return error(409, message, *args, **kwargs)
 
 ################################################################################

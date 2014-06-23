@@ -1,3 +1,4 @@
+from django.db import IntegrityError
 
 #====================================================================================
 # Workflow transitions
@@ -27,4 +28,13 @@ class CouponDoubleSpendError(Exception):
 class CouponDateError(Exception):
     """Coupon could not be used: out of date"""
     pass
+
+#====================================================================================
+# Model errors
+#====================================================================================
+
+class StateError(IntegrityError):
+    """The model does not allow that operation due to current workflow state"""
+    pass
+    
 

@@ -203,7 +203,6 @@ class OrderResource(ModelResource):
     
     def put_item(self, request, id):
         POST = json.loads(request.body)
-        print POST
         try:
             order = self.model.objects.get(id=id)
         except ObjectDoesNotExist:
@@ -212,14 +211,18 @@ class OrderResource(ModelResource):
             if prop not in self.immutable_fields:
                 setattr(order, prop, val)
         if POST.get("items"):
-            models.OrderItem.objects.filter(order=order).delete()
-            items = []
-            for sku, qty in POST.get("items", {}).items():
-                try:
-                    listing = models.Listing.objects.get(store=order.store, product__sku=sku)
-                    items.append(models.OrderItem.objects.create(order=order, product=listing, quantity=qty))
-                except ObjectDoesNotExist:
-                    pass
+            try:
+                order.clear_items()
+                items = []
+                for sku, qty in POST.get("items", {}).items():
+                    try:
+                        #listing = models.Listing.objects.get(store=order.store, product__sku=sku)
+                        #items.append(models.OrderItem.objects.create(order=order, product=listing, quantity=qty))
+                        items.append(order.add_item(sku, qty))
+                    except ObjectDoesNotExist:
+                        pass
+            except StateError:
+                return bad_request("Unable to modify order items")
         order.save()
         if POST.get("coupon") and not order.coupon:
             try:
@@ -256,9 +259,10 @@ class OrderResource(ModelResource):
         order = models.Order.objects.create(store=store, customer=customer, currency=store.default_currency)
         items = {}
         for sku, qty in order_data.get("items", {}).items():
-            listing = models.Listing.objects.get(product__sku=sku) # TODO handle error if listing not valid
-            models.OrderItem.objects.create(order=order, product=listing, quantity=qty)
-            items[sku] = listing
+            #listing = models.Listing.objects.get(product__sku=sku) # TODO handle error if listing not valid
+            #models.OrderItem.objects.create(order=order, product=listing, quantity=qty)
+            item = order.add_item(sku, qty)
+            items[sku] = item.product
         coupon_code = order_data.get("coupon")
         if coupon_code:
             try:
@@ -305,16 +309,19 @@ class OrderItemResource(ModelResource):
         except ObjectDoesNotExist:
             return not_found()
         POST = json.loads(request.body)
-        models.OrderItem.objects.filter(order=order).delete()
+        try:
+            order.clear_items()
+        except StateError:
+            return bad_request("Unable to modify order items")
         items = []
         for sku, qty in POST.get("items", {}).items():
             try:
-                listing = models.Listing.objects.get(store=order.store, product__sku=sku)
-                items.append(models.OrderItem.objects.create(order=order, product=listing, quantity=qty))
+                #listing = models.Listing.objects.get(store=order.store, product__sku=sku)
+                #items.append(models.OrderItem.objects.create(order=order, product=listing, quantity=qty))
+                items.append(order.add_item(sku, qty))
             except ObjectDoesNotExist:
                 pass
         return ok(result=items)
-
 
 class OrderEventResource(ModelResource):
     model = models.OrderEvent

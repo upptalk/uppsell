@@ -545,6 +545,25 @@ class Order(models.Model):
             OrderEvent.objects.create(order=self, action_type="order", event="start")
             OrderEvent.objects.create(order=self, action_type="payment", event="start")
     
+    def clear_items(self):
+        if self.order_state not in ("init", "pending_payment"):
+            raise StateError("Can't remove items from order in state %s" % str(self.order_state))
+        return OrderItem.objects.filter(order=self).delete()
+    
+    def add_item(self, sku, quantity = 1):
+        if self.order_state not in ("init", "pending_payment"):
+            raise StateError("Can't add items to order in state %s" % str(self.order.order_state))
+        try:
+            # See if we have an existing item
+            item = OrderItem.objects.get(order=self, product__product__sku=sku)
+            item.quantity = item.quantity + quantity
+            item.save()
+        except ObjectDoesNotExist:
+            listing = Listing.objects.get(product__sku=sku)
+            item = OrderItem.objects.create(order=self,
+                    product=listing, quantity=quantity)
+        return item
+
     def can_transition(self, action_type, event):
         if action_type == "order":
             return self.order_workflow.can(event)
@@ -661,6 +680,20 @@ class OrderItem(models.Model):
     def sku(self):
         return self.product.product.sku
 
+    def save(self, *args, **kwargs):
+        if self.order.order_state not in ("init", "pending_payment"):
+            raise StateError("Can't add items to order in state %s" % str(self.order.order_state))
+        super(OrderItem, self).save(*args, **kwargs)
+        OrderEvent.objects.create(order=self.order, action_type="comment", event="add_item",
+                comment="Product %s added to order" % str(self.product))
+
+    def delete(self, *args, **kwargs):
+        if self.order.order_state not in ("init", "pending_payment"):
+            raise StateError("Can't delete items from order in state %s" % str(self.order.order_state))
+        super(OrderItem, self).delete(*args, **kwargs)
+        OrderEvent.objects.create(order=self.order, action_type="comment", event="del_item",
+                comment="Product %s removed from order" % str(self.product))
+
     class Meta:
         db_table = 'order_items'
     
@@ -705,16 +738,16 @@ class Invoice(models.Model):
     order_tax_total = models.DecimalField(max_digits=8, decimal_places=2)
     order_shipping_total = models.DecimalField(max_digits=8, decimal_places=2)
     currency = models.CharField(max_length=3)
-    user_fullname = models.CharField(max_length=100)
+    user_fullname = models.CharField(max_length=100) # TODO is 100 chars enough?
     upptalk_username = models.CharField(max_length=100)
-    shipping_address = models.CharField(max_length=1000, blank=True)
-    billing_address = models.CharField(max_length=1000)
+    shipping_address = models.CharField(max_length=1000, blank=True) # TODO, if this is Json-encoded, why not use a Json field type?
+    billing_address = models.CharField(max_length=1000) # Same with this - JSON field?
     user_mobile_msisdn = models.CharField(max_length=200)
     user_email = models.CharField(max_length=200)
     payment_made_ts = models.DateTimeField('timestamp payment captured')
     created_at = models.DateTimeField('timestamp created', auto_now_add=True)
     coupon = models.CharField(max_length=1000, blank=True, null=True)
-    products = models.CharField(max_length=2000)
+    products = models.CharField(max_length=2000) # TODO is 2000 chars enough? Use Json?
     
     # where do I get this from?
     #psp_id = models.IntegerField() # non-relational
@@ -728,7 +761,7 @@ class Invoice(models.Model):
         return serializers.serialize('json', [data])
 
     @staticmethod
-    def generate_invoice(order):
+    def create_invoice(order):
         # get related objects and data
         customer = order.customer
         totals   = order.totals
@@ -745,22 +778,22 @@ class Invoice(models.Model):
         currency = order.currency
         user_fullname = customer.full_name 
         upptalk_username = customer.username
+        shipping_address = ""
         if order.shipping_address:
             shipping_address = Invoice.encode(order.shipping_address)
-        else:
-            shipping_address = ""
         billing_address = Invoice.encode(order.billing_address)
         user_mobile_msisdn = customer.phone
         user_email = customer.email
         payment_made_ts = order.payment_made_ts
         created_at = order.created_at
+        coupon = ""
         if order.coupon:
             coupon = Invoice.encode(order.coupon)
-        else:
-            coupon = ""
         products = {}
         for order_item in OrderItem.objects.filter(order=order):
             listing = order_item.product
+            # TODO: define the key once and re-use
+            # TODO: why not use the SKU as the key?
             products['listing_'+listing.id] = {}
             products['listing_'+listing.id]['store'] = listing.store
             products['listing_'+listing.id]['product'] = Invoice.encode(listing.product)
@@ -773,8 +806,10 @@ class Invoice(models.Model):
             products['listing_'+listing.id]['subtitle'] = listing.subtitle
             products['listing_'+listing.id]['description'] = listing.description
             products['listing_'+listing.id]['features'] = listing.features
-        products = str(products)
-        inv = Invoice(
+            # TODO: listing sku?
+            # TODO: listing quantity?
+        products = str(products) # XXX: why do we convert to string here? Wht not use Json?
+        inv = Invoice( # TODO: why not create an Invoice instance at the beginning of this method and fill it up, rather than use local variables?
             order_id=order_id,
             store_id=store_id,
             transaction_id=transaction_id,
@@ -792,10 +827,9 @@ class Invoice(models.Model):
             payment_made_ts=str(payment_made_ts),
             created_at=str(created_at),
             coupon=coupon,
-            products=products,
-        )
+            products=products)
         inv.save()
-        return inv.id
+        return inv
 
     class Meta:
         db_table = 'invoices'
