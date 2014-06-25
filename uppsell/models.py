@@ -137,7 +137,11 @@ class Urn(object):
     def __getitem__(self, item):
         return self._props.get(item)
     def __unicode__(self):
-        return "urn:%s:%s:%s" % (self.nsid, self.nssid, ":".join(["%s:%s"%(k,v) for k,v in self._props.items()]))
+        as_str = "urn:%s:%s" % (self.nsid, self.nssid)
+        if self._props != {}:
+            props = ":".join(["%s:%s"%(k,v) for k,v in self._props.items()])
+            as_str = "%s:%s" % (as_str, props)
+        return as_str
     __repr__ = __unicode__
 
 class SeparatedValuesField(models.TextField):
