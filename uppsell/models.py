@@ -57,6 +57,7 @@ PAYMENT_STATES = ( # (payment_state, description)
     ('pending', 'Pending Payment'),
     ('authorized', 'Authorized'),
     ('captured', 'Captured'),
+    ('nopayment', 'No Payment'),
     ('cancelled', 'Canceled'),
     ('declined', 'Declined'),
     ('expired', 'Expired'),
@@ -75,6 +76,7 @@ PAYMENT_TRANSITIONS = ( # (payment_transition, description)
     ('refuse', 'Refuse dispute'),
     ('chargeback', 'Chargeback'),
     ('refund', 'Refund'),
+    ('notrequired', 'Payment Not Required'),
 )
 PAYMENT_WORKFLOW = ( # (transition, state_before, state_after)
     ('start', 'init', 'pending'),
@@ -89,6 +91,7 @@ PAYMENT_WORKFLOW = ( # (transition, state_before, state_after)
     ('refuse', 'disputed', 'capture'),
     ('chargeback', 'disputed', 'charged_back'),
     ('refund', 'capture', 'refunded'),
+    ('notrequired', 'pending', 'nopayment'),
 )
 PRODUCT_STATES = ( # (product_state, description)
     ('init', 'Init'),
@@ -297,21 +300,6 @@ class Product(models.Model):
     
     def __unicode__(self):
         return "%s: %s" % (self.sku, self.name)
-
-class ProductCode(models.Model):
-    """
-    Different products have different identifiers, such as ISBN (books),
-    ISSN (seriels), ICCID (SIM cards), EAN (International Article Number)...
-    """
-    type = models.CharField(max_length=20)
-    product = models.ForeignKey(ProductGroup)
-    code = models.CharField(max_length=255)
-    
-    class Meta:
-        db_table = 'product_codes'
-    
-    def __unicode__(self):
-        return u"<%s %s>" % (self.type, self.code)
 
 class Listing(models.Model):
     store = models.ForeignKey(Store)
