@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
 from django.views.generic import View
 from django.core.exceptions import ObjectDoesNotExist
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
 from django.http import QueryDict
 from uppsell.util.responses import *
+import logging
+import json
 
 class Resource(View):
     pass
 
 class ModelResource(Resource):
 
+    _logger = logging.getLogger(__name__)
     model = None
     
     read_only = ()
@@ -45,21 +46,25 @@ class ModelResource(Resource):
         }
 
     def get(self, request, *args, **kwargs):
+        self._logger.info(json.dumps({"method": request.method, "url": request.path, "params": request.GET}))
         if sorted(kwargs.keys()) == self.required_params:
             return self.get_list(request, *args, **kwargs)
         return self.get_item(request, *args, **kwargs)
     
     def put(self, request, *args, **kwargs):
+        self._logger.info(json.dumps({"method": request.method, "url": request.path, "params": request.POST}))
         if sorted(kwargs.keys()) == self.required_params:
             return self.put_list(request, *args, **kwargs)
         return self.put_item(request, *args, **kwargs)
     
     def post(self, request, *args, **kwargs):
+        self._logger.info(json.dumps({"method": request.method, "url": request.path, "params": request.POST}))
         if sorted(kwargs.keys()) == self.required_params:
             return self.post_list(request, *args, **kwargs)
         return self.post_item(request, *args, **kwargs)
     
     def delete(self, request, *args, **kwargs):
+        self._logger.info(json.dumps({"method": request.method, "url": request.path, "params": request.GET}))
         if sorted(kwargs.keys()) == self.required_params:
             return self.delete_list(request, *args, **kwargs)
         return self.delete_item(request, *args, **kwargs)

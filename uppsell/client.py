@@ -1,8 +1,10 @@
 import requests
-from copy import deepcopy
+import logging
+import json
 
 class Resource:
     _uri = None
+    _logger = logging.getLogger(__name__)
 
     def __init__(self, uri):
         self._uri = uri
@@ -17,12 +19,13 @@ class Resource:
         try:
             requests_fun = getattr(requests.api, name)
             def req_method(*args, **kwargs):
+                self._logger.info(json.dumps({"url": self._uri, "args": args, "kwargs": kwargs}))
                 return requests_fun(self._uri, *args, **kwargs)
             return req_method
         except AttributeError:
             pass
         return self.__getitem__(name)
-    
+
 class Client(Resource):
     _uri = None
 

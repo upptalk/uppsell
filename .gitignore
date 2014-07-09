@@ -3,3 +3,4 @@
 data/*.sqlite3
 uppsell/settings.py
 local_settings.py
+*.pyc
