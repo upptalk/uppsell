@@ -325,11 +325,11 @@ class OrderItemResource(ModelResource):
 
 class OrderEventResource(ModelResource):
     model = models.OrderEvent
-    required_params = ['id',] # id=Order.id
+    required_params = ['order',] # id=Order.id
     
     def post_list(self, request, *args, **kwargs):
         try:
-            order = models.Order.objects.get(pk=kwargs["id"])
+            order = models.Order.objects.get(pk=kwargs["order"])
         except ObjectDoesNotExist:
             return not_found()
         action_type, event = request.POST.get("action_type"), request.POST.get("event")

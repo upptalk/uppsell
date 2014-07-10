@@ -38,5 +38,5 @@ uppsell.api.add_resource(resources.OrderItemResource,
     r'orders/(?P<id>[^/]*)/items$',
     r'orders/(?P<id>[^/]*)/items/(?P<sku>[^/]*)$')
 uppsell.api.add_resource(resources.OrderEventResource,
-    r'orders/(?P<id>[^/]*)/events$')
+    r'orders/(?P<order>[^/]*)/events$')
 

@@ -57,7 +57,7 @@ PAYMENT_STATES = ( # (payment_state, description)
     ('pending', 'Pending Payment'),
     ('authorized', 'Authorized'),
     ('captured', 'Captured'),
-    ('nopayment', 'No Payment'),
+    ('no_payment', 'No Payment'),
     ('cancelled', 'Canceled'),
     ('declined', 'Declined'),
     ('expired', 'Expired'),
@@ -76,7 +76,7 @@ PAYMENT_TRANSITIONS = ( # (payment_transition, description)
     ('refuse', 'Refuse dispute'),
     ('chargeback', 'Chargeback'),
     ('refund', 'Refund'),
-    ('notrequired', 'Payment Not Required'),
+    ('not_required', 'Payment Not Required'),
 )
 PAYMENT_WORKFLOW = ( # (transition, state_before, state_after)
     ('start', 'init', 'pending'),
@@ -91,7 +91,9 @@ PAYMENT_WORKFLOW = ( # (transition, state_before, state_after)
     ('refuse', 'disputed', 'capture'),
     ('chargeback', 'disputed', 'charged_back'),
     ('refund', 'capture', 'refunded'),
-    ('notrequired', 'pending', 'nopayment'),
+    ('not_required', 'pending', 'no_payment'),
+    ('not_required', 'captured', 'no_payment'),
+    ('not_required', 'authorized', 'no_payment'),
 )
 PRODUCT_STATES = ( # (product_state, description)
     ('init', 'Init'),
@@ -887,6 +889,14 @@ def notify_order_on_payment_capture(signal, key, transition, sender, model, stat
         action_type="order", 
         event="capture",
         comment="Order processing as payment captured")
+
+@post_transition("payment_state", Order, "not_required", "no_payment")
+def notify_order_on_payment_not_required(signal, key, transition, sender, model, state):
+    """This callback occurs just after the payment moves from pending to no_payment"""
+    OrderEvent.objects.create(order=model,
+        action_type="order", 
+        event="capture",
+        comment="Order processing as payment not required. Order total is %s" % model.totals["total_total"])
 
 @post_transition("payment_state", Order, "capture", "captured")
 def generate_invoice(signal, key, transition, sender, model, state):
