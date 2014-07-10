@@ -429,6 +429,8 @@ class Coupon(models.Model):
     product_group = models.ForeignKey(ProductGroup, blank=True, null=True,
             help_text="Select Product Group for 'group' coupon")
     
+    discount_shipping = models.BooleanField("Discount shipping", default=False,
+            help_text="Check this if the discount should also apply to shipping costs.")
     discount_amount = models.DecimalField("Discount amount", max_digits=8, decimal_places=2,
             blank=True, null=True, help_text="Amount to be discounted from GROSS (after tax) total, or:")
     max_uses = models.PositiveIntegerField("Max uses",
@@ -613,7 +615,7 @@ class Order(models.Model):
             "gross_total": round(gross_total, 2),
             "discount_total": Decimal(0.0),
             "total_total": round(gross_total+shipping_total, 2)}
-        coupon_base = self.get_coupon_base(gross_total)
+        coupon_base = self.get_coupon_base(gross_total, shipping_total)
         if coupon_base:
             discount_total = self.coupon.get_discount_price(coupon_base)
             total_total = gross_total - discount_total
@@ -621,20 +623,30 @@ class Order(models.Model):
             self._totals["total_total"] = round(total_total+shipping_total, 2)
         return self._totals
     
-    def get_coupon_base(self, order_gross_total = 0):
+    def get_coupon_base(self, order_gross_total = 0, order_shipping_total = 0):
+        """Calculate the base over which the discount is applied
+        Takes into account if the coupon is associated with a particular product,
+        product group and if the coupon applies to shipping or not
+        """
         if not self.coupon:
             return None
         if self.coupon.customer and self.coupon.customer != self.customer:
             return None
         costs = self.get_costs()
         if self.coupon.product:
-            for product, _, _, gross, _, _ in costs:
+            for product, _, _, gross, _, shipping in costs:
                 if product == self.coupon.product:
+                    if self.coupon.discount_shipping:
+                        return gross + shipping
                     return gross
         if self.coupon.product_group:
-            for product, _, _, gross, _, _ in costs:
+            for product, _, _, gross, _, shipping in costs:
                 if product.group == self.coupon.product_group:
+                    if self.coupon.discount_shipping:
+                        return gross + shipping
                     return gross
+        if self.coupon.discount_shipping:
+            return order_gross_total + order_shipping_total
         return order_gross_total
             
     @property
