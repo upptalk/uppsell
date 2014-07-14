@@ -755,7 +755,7 @@ class Invoice(models.Model):
     user_document = models.CharField('Document Number', max_length=100)
     user_mobile_msisdn = models.CharField('Phone Number', max_length=200)
     user_email = models.CharField('Email', max_length=200)
-    user_dob = models.DateTimeField('Date of Birth')
+    user_dob = models.DateField("DOB", blank=True, null=True)
     shipping_address = models.CharField('Shipping Address', max_length=1000, blank=True)
     billing_address = models.CharField('Billing Address', max_length=1000)
 
@@ -773,8 +773,8 @@ class Invoice(models.Model):
     
     @staticmethod
     def create_invoice(order):
-        if order.payment_state != 'captured':
-            return
+        if order.order_state == "pending_payment":
+            raise ValueError, "Unable to generate invoice for incomplete order"
         try:
             return Invoice.objects.get(order_id=order.id)
         except Invoice.DoesNotExist:
@@ -791,7 +791,7 @@ class Invoice(models.Model):
         inv.order_id = order.id
         inv.customer_id = customer.id
         inv.store_id = order.store.id
-        inv.user_fullname = profile.customer.full_name 
+        inv.user_fullname = customer.full_name 
         inv.user_document_type = profile.document_type
         inv.user_document = profile.document
         inv.user_mobile_msisdn = customer.phone
@@ -816,7 +816,8 @@ class Invoice(models.Model):
             product = {"sku": listing.product.sku,
                 "name": listing.product.name,
                 "tax_rate": str(listing.tax_rate.rate),
-                "net_price": str(listing.price)
+                "net_price": str(listing.price),
+                "quantity": order_item.quantity,
             }
             products.append(product)
         inv.products = json.dumps(products)
