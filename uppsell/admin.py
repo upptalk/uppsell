@@ -289,6 +289,16 @@ class CouponAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('remaining',)
 
+class InvoiceAdmin(admin.ModelAdmin):
+    fields = ('id', 'order_id', 'customer_id', 'store_id', 'user_fullname', 'user_document_type', 'user_document',
+              'user_mobile_msisdn', 'user_email', 'user_dob', 'shipping_address', 'billing_address',
+              'payment_made_ts', 'coupon', 'products', 'currency', 'order_sub_total', 'order_shipping_total',
+              'order_tax_total', 'order_gross_total', 'order_discount_total', 'order_total') 
+
+    list_display = ('id', 'user_fullname', 'user_document', 'payment_made_ts', 'order_sub_total', 
+                    'order_shipping_total', 'order_tax_total', 'order_discount_total', 'order_total')
+    readonly_fields  = fields
+
 admin.site.register(models.Customer, CustomerAdmin)
 admin.site.register(models.Address, AddressAdmin)
 admin.site.register(models.Store)
@@ -297,6 +307,6 @@ admin.site.register(models.ProductGroup)
 admin.site.register(models.Product, ProductAdmin)
 admin.site.register(models.Listing, ListingAdmin)
 admin.site.register(models.Order, OrderAdmin)
-admin.site.register(models.Invoice)
 admin.site.register(models.Coupon, CouponAdmin)
+admin.site.register(models.Invoice, InvoiceAdmin)
 
