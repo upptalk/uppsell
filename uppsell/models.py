@@ -782,11 +782,7 @@ class Invoice(models.Model):
 
         inv = Invoice()
         customer = order.customer
-
-        try:
-            profile = Profile.objects.get(customer=customer)
-        except Profile.DoesNotExist:
-            return
+        profile  = Profile.objects.get(customer=customer)
 
         inv.order_id = order.id
         inv.customer_id = customer.id
