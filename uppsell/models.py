@@ -11,6 +11,8 @@ from uppsell.workflow import Workflow, BadTransition, pre_transition, post_trans
 from uppsell.exceptions import *
 from south.modelsinspector import add_introspection_rules
 from django.core import serializers
+from yuilopstore.models import Profile
+import json
 
 add_introspection_rules([], [r"^uppsell\.models\.SeparatedValuesField"])
 
@@ -138,7 +140,7 @@ class Urn(object):
         return self._props.get(item)
     def __unicode__(self):
         as_str = "urn:%s:%s" % (self.nsid, self.nssid)
-        if self._props != {}:
+        if self._props:
             props = ":".join(["%s:%s"%(k,v) for k,v in self._props.items()])
             as_str = "%s:%s" % (as_str, props)
         return as_str
@@ -733,105 +735,85 @@ class OrderEvent(models.Model):
         super(OrderEvent, self).save(*args, **kwargs)
     
 class Invoice(models.Model):
-    order_id = models.IntegerField(unique=True) # non-relational
-    store_id = models.IntegerField() # non-relational
-    transaction_id = models.CharField(max_length=200, blank=True)
-    payment_state = models.CharField(max_length=50, blank=True)
-    order_total = models.DecimalField(max_digits=8, decimal_places=2)
-    order_sub_total = models.DecimalField(max_digits=8, decimal_places=2)
-    order_tax_total = models.DecimalField(max_digits=8, decimal_places=2)
-    order_shipping_total = models.DecimalField(max_digits=8, decimal_places=2)
-    currency = models.CharField(max_length=3)
-    user_fullname = models.CharField(max_length=100) # TODO is 100 chars enough?
-    upptalk_username = models.CharField(max_length=100)
-    shipping_address = models.CharField(max_length=1000, blank=True) # TODO, if this is Json-encoded, why not use a Json field type?
-    billing_address = models.CharField(max_length=1000) # Same with this - JSON field?
-    user_mobile_msisdn = models.CharField(max_length=200)
-    user_email = models.CharField(max_length=200)
-    payment_made_ts = models.DateTimeField('timestamp payment captured')
-    created_at = models.DateTimeField('timestamp created', auto_now_add=True)
-    coupon = models.CharField(max_length=1000, blank=True, null=True)
-    products = models.CharField(max_length=2000) # TODO is 2000 chars enough? Use Json?
-    
-    # where do I get this from?
-    #psp_id = models.IntegerField() # non-relational
-    #psp_response_code = models.CharField(max_length=200)
-    #psp_response_text = models.CharField(max_length=10000)
-    #psp_type = models.CharField(max_length=200)
-    
-    # JSON encoder
-    @staticmethod
-    def encode(data):
-        return serializers.serialize('json', [data])
+    order_id = models.IntegerField(unique=True)
+    customer_id = models.IntegerField()
+    store_id = models.IntegerField()
 
+    user_fullname = models.CharField('Fullname', max_length=100)
+    user_document_type = models.CharField('Document Type', max_length=20)
+    user_document = models.CharField('Document Number', max_length=100)
+    user_mobile_msisdn = models.CharField('Phone Number', max_length=200)
+    user_email = models.CharField('Email', max_length=200)
+    user_dob = models.DateTimeField('Date of Birth')
+    shipping_address = models.CharField('Shipping Address', max_length=1000, blank=True)
+    billing_address = models.CharField('Billing Address', max_length=1000)
+
+    payment_made_ts = models.DateTimeField('Payment Date')
+    coupon = models.CharField('Coupon Code', max_length=1000, blank=True, null=True)
+    products = models.CharField('Products Detail', max_length=2000)
+
+    currency = models.CharField(max_length=3)
+    order_sub_total = models.DecimalField('Sub Total', max_digits=8, decimal_places=2)
+    order_shipping_total = models.DecimalField('Shipping Total', max_digits=8, decimal_places=2)
+    order_tax_total = models.DecimalField('Tax Total', max_digits=8, decimal_places=2)
+    order_gross_total = models.DecimalField('Gross Total', max_digits=8, decimal_places=2)
+    order_discount_total = models.DecimalField('Discount', max_digits=8, decimal_places=2)
+    order_total = models.DecimalField('TOTAL', max_digits=8, decimal_places=2)
+    
     @staticmethod
     def create_invoice(order):
-        # get related objects and data
-        customer = order.customer
-        totals   = order.totals
+        if order.payment_state != 'captured':
+            return
+        try:
+            return Invoice.objects.get(order_id=order.id)
+        except Invoice.DoesNotExist:
+            pass
 
-        # fill up fields
-        order_id = order.id
-        store_id = order.store.id
-        transaction_id = order.transaction_id
-        payment_state = order.payment_state
-        order_total = totals['total_total']
-        order_sub_total = totals['sub_total']
-        order_tax_total = totals['tax_total']
-        order_shipping_total = totals['shipping_total']
-        currency = order.currency
-        user_fullname = customer.full_name 
-        upptalk_username = customer.username
-        shipping_address = ""
+        inv = Invoice()
+        customer = order.customer
+        profile  = Profile.objects.get(customer=customer)
+
+        inv.order_id = order.id
+        inv.customer_id = customer.id
+        inv.store_id = order.store.id
+        inv.user_fullname = profile.customer.full_name 
+        inv.user_document_type = profile.document_type
+        inv.user_document = profile.document
+        inv.user_mobile_msisdn = customer.phone
+        inv.user_email = customer.email
+        inv.user_dob = profile.dob
+        ba = order.billing_address
+        inv.billing_address = ba.line1 +" "+ ba.line2 +" "+ ba.line3 + ba.city +" "+ ba.zip +" "+ ba.province +" "+ ba.country
         if order.shipping_address:
-            shipping_address = Invoice.encode(order.shipping_address)
-        billing_address = Invoice.encode(order.billing_address)
-        user_mobile_msisdn = customer.phone
-        user_email = customer.email
-        payment_made_ts = order.payment_made_ts
-        created_at = order.created_at
-        coupon = ""
+            sa = order.shipping_address
+            inv.shipping_address =  sa.line1 +" "+ sa.line2 +" "+ sa.line3 + sa.city +" "+ sa.zip +" "+ sa.province +" "+ sa.country
+        else:
+            inv.shipping_address = ""
+        inv.payment_made_ts = order.created_at
+        inv.coupon = ""
         if order.coupon:
-            coupon = Invoice.encode(order.coupon)
-        products = {}
+            c = order.coupon
+            coupon = {"id":c.id, "name":c.name, "type":c.type, "code":c.code, "discount":str(c.discount_amount)}
+            inv.coupon = json.dumps(coupon)
+        products = []
         for order_item in OrderItem.objects.filter(order=order):
             listing = order_item.product
-            # TODO: define the key once and re-use
-            # TODO: why not use the SKU as the key?
-            products['listing_'+listing.id] = {}
-            products['listing_'+listing.id]['store'] = listing.store
-            products['listing_'+listing.id]['product'] = Invoice.encode(listing.product)
-            products['listing_'+listing.id]['tax_rate'] = listing.tax_rate
-            products['listing_'+listing.id]['state'] = listing.state
-            products['listing_'+listing.id]['price'] = listing.price
-            products['listing_'+listing.id]['shipping'] = listing.shipping
-            products['listing_'+listing.id]['name'] = listing.name
-            products['listing_'+listing.id]['title'] = listing.title
-            products['listing_'+listing.id]['subtitle'] = listing.subtitle
-            products['listing_'+listing.id]['description'] = listing.description
-            products['listing_'+listing.id]['features'] = listing.features
-            # TODO: listing sku?
-            # TODO: listing quantity?
-        products = str(products) # XXX: why do we convert to string here? Wht not use Json?
-        inv = Invoice( # TODO: why not create an Invoice instance at the beginning of this method and fill it up, rather than use local variables?
-            order_id=order_id,
-            store_id=store_id,
-            transaction_id=transaction_id,
-            payment_state=payment_state,
-            order_total=order_total,
-            order_sub_total=order_sub_total,
-            order_tax_total=order_tax_total,
-            order_shipping_total=order_shipping_total,
-            currency=currency,
-            user_fullname=user_fullname,
-            upptalk_username=upptalk_username,
-            billing_address=billing_address,
-            user_mobile_msisdn=user_mobile_msisdn,
-            user_email=user_email,
-            payment_made_ts=str(payment_made_ts),
-            created_at=str(created_at),
-            coupon=coupon,
-            products=products)
+            product = {"sku": listing.product.sku,
+                "name": listing.product.name,
+                "tax_rate": str(listing.tax_rate.rate),
+                "net_price": str(listing.price)
+            }
+            products.append(product)
+        inv.products = json.dumps(products)
+        inv.currency = order.currency
+        totals = order.totals
+        inv.order_sub_total = totals['sub_total']
+        inv.order_shipping_total = totals['shipping_total']
+        inv.order_tax_total = totals['tax_total']
+        inv.order_gross_total = totals['gross_total']
+        inv.order_discount_total = totals['discount_total']
+        inv.order_total = totals['total_total']
+
         inv.save()
         return inv
 
