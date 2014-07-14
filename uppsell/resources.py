@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from django.views.generic import View
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, FieldError
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.http import QueryDict
@@ -75,7 +75,15 @@ class ModelResource(Resource):
     def get_list(self, request, *args, **kwargs):
         if not self.allow_get_list:
             return method_not_allowed()
-        return ok(self.label, result=self.model.objects.all(), meta=self._meta)
+        filters = request.GET.dict()
+        filters.update(**kwargs)
+        try:
+            result = self.model.objects.filter(**filters)
+        except FieldError, e:
+            return bad_request(e.message)
+        if result.count() == 0:
+            return not_found(self.label, result=result, meta=self._meta, filters=filters)
+        return ok(self.label, result=result, meta=self._meta, filters=filters)
     
     def put_item(self, request, *args, **kwargs):
         if not self.allow_put_item:

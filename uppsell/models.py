@@ -59,6 +59,7 @@ PAYMENT_STATES = ( # (payment_state, description)
     ('pending', 'Pending Payment'),
     ('authorized', 'Authorized'),
     ('captured', 'Captured'),
+    ('no_payment', 'No Payment'),
     ('cancelled', 'Canceled'),
     ('declined', 'Declined'),
     ('expired', 'Expired'),
@@ -77,6 +78,7 @@ PAYMENT_TRANSITIONS = ( # (payment_transition, description)
     ('refuse', 'Refuse dispute'),
     ('chargeback', 'Chargeback'),
     ('refund', 'Refund'),
+    ('not_required', 'Payment Not Required'),
 )
 PAYMENT_WORKFLOW = ( # (transition, state_before, state_after)
     ('start', 'init', 'pending'),
@@ -91,6 +93,9 @@ PAYMENT_WORKFLOW = ( # (transition, state_before, state_after)
     ('refuse', 'disputed', 'capture'),
     ('chargeback', 'disputed', 'charged_back'),
     ('refund', 'capture', 'refunded'),
+    ('not_required', 'pending', 'no_payment'),
+    ('not_required', 'captured', 'no_payment'),
+    ('not_required', 'authorized', 'no_payment'),
 )
 PRODUCT_STATES = ( # (product_state, description)
     ('init', 'Init'),
@@ -300,21 +305,6 @@ class Product(models.Model):
     def __unicode__(self):
         return "%s: %s" % (self.sku, self.name)
 
-class ProductCode(models.Model):
-    """
-    Different products have different identifiers, such as ISBN (books),
-    ISSN (seriels), ICCID (SIM cards), EAN (International Article Number)...
-    """
-    type = models.CharField(max_length=20)
-    product = models.ForeignKey(ProductGroup)
-    code = models.CharField(max_length=255)
-    
-    class Meta:
-        db_table = 'product_codes'
-    
-    def __unicode__(self):
-        return u"<%s %s>" % (self.type, self.code)
-
 class Listing(models.Model):
     store = models.ForeignKey(Store)
     product = models.ForeignKey(Product)
@@ -443,6 +433,8 @@ class Coupon(models.Model):
     product_group = models.ForeignKey(ProductGroup, blank=True, null=True,
             help_text="Select Product Group for 'group' coupon")
     
+    discount_shipping = models.BooleanField("Discount shipping", default=False,
+            help_text="Check this if the discount should also apply to shipping costs.")
     discount_amount = models.DecimalField("Discount amount", max_digits=8, decimal_places=2,
             blank=True, null=True, help_text="Amount to be discounted from GROSS (after tax) total, or:")
     max_uses = models.PositiveIntegerField("Max uses",
@@ -627,7 +619,7 @@ class Order(models.Model):
             "gross_total": round(gross_total, 2),
             "discount_total": Decimal(0.0),
             "total_total": round(gross_total+shipping_total, 2)}
-        coupon_base = self.get_coupon_base(gross_total)
+        coupon_base = self.get_coupon_base(gross_total, shipping_total)
         if coupon_base:
             discount_total = self.coupon.get_discount_price(coupon_base)
             total_total = gross_total - discount_total
@@ -635,20 +627,30 @@ class Order(models.Model):
             self._totals["total_total"] = round(total_total+shipping_total, 2)
         return self._totals
     
-    def get_coupon_base(self, order_gross_total = 0):
+    def get_coupon_base(self, order_gross_total = 0, order_shipping_total = 0):
+        """Calculate the base over which the discount is applied
+        Takes into account if the coupon is associated with a particular product,
+        product group and if the coupon applies to shipping or not
+        """
         if not self.coupon:
             return None
         if self.coupon.customer and self.coupon.customer != self.customer:
             return None
         costs = self.get_costs()
         if self.coupon.product:
-            for product, _, _, gross, _, _ in costs:
+            for product, _, _, gross, _, shipping in costs:
                 if product == self.coupon.product:
+                    if self.coupon.discount_shipping:
+                        return gross + shipping
                     return gross
         if self.coupon.product_group:
-            for product, _, _, gross, _, _ in costs:
+            for product, _, _, gross, _, shipping in costs:
                 if product.group == self.coupon.product_group:
+                    if self.coupon.discount_shipping:
+                        return gross + shipping
                     return gross
+        if self.coupon.discount_shipping:
+            return order_gross_total + order_shipping_total
         return order_gross_total
             
     @property
@@ -869,6 +871,14 @@ def notify_order_on_payment_capture(signal, key, transition, sender, model, stat
         action_type="order", 
         event="capture",
         comment="Order processing as payment captured")
+
+@post_transition("payment_state", Order, "not_required", "no_payment")
+def notify_order_on_payment_not_required(signal, key, transition, sender, model, state):
+    """This callback occurs just after the payment moves from pending to no_payment"""
+    OrderEvent.objects.create(order=model,
+        action_type="order", 
+        event="capture",
+        comment="Order processing as payment not required. Order total is %s" % model.totals["total_total"])
 
 @post_transition("payment_state", Order, "capture", "captured")
 def generate_invoice(signal, key, transition, sender, model, state):

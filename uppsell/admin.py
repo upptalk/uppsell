@@ -278,7 +278,7 @@ class CouponAdmin(admin.ModelAdmin):
     list_display = ('code', 'name', 'max_uses', 'remaining', 'valid_until')
     fieldsets = (
         (None, {
-            'fields': ('code', 'name', 'type', 'discount_amount')
+            'fields': ('code', 'name', 'type', 'discount_amount', 'discount_shipping')
         }),
         ('Optional relations', {
             'fields': ('store', 'customer', 'product', 'product_group')
