@@ -161,9 +161,9 @@ class OrderAdmin(admin.ModelAdmin):
     #actions = order_actions
     fields = ('store', 'customer', "transaction_id", "shipping_address",
             "billing_address", "currency", 'order_state', 'payment_state',
-            'coupon', 'payment_made_ts', 'created_at', 'updated_at',)
+            'coupon', 'reference', 'payment_made_ts', 'created_at', 'updated_at',)
     readonly_fields = ("transaction_id", 'order_state', 'payment_state', 'customer', 'store',
-            "shipping_address", "billing_address", 'payment_made_ts',
+            "shipping_address", "billing_address", "currency", 'payment_made_ts',
             'created_at', 'updated_at',)
     inlines = (OrderItemInline,OrderEventInline,)
     

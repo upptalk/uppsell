@@ -513,6 +513,7 @@ class Order(models.Model):
     transaction_id = models.CharField(max_length=200, blank=True, null=True)
     shipping_address = models.ForeignKey(Address, related_name="shipping_address", null=True, blank=True)
     billing_address = models.ForeignKey(Address, related_name="billing_address", null=True, blank=True)
+    reference = models.CharField(max_length=200, blank=True, null=True)
 
     currency = models.CharField(max_length=3)
 
@@ -546,18 +547,25 @@ class Order(models.Model):
             raise StateError("Can't remove items from order in state %s" % str(self.order_state))
         return OrderItem.objects.filter(order=self).delete()
     
-    def add_item(self, sku, quantity = 1):
+    @property
+    def items(self):
+        return OrderItem.objects.filter(order=self)
+
+    def add_item(self, sku, quantity = 1, reference = None):
         if self.order_state not in ("init", "pending_payment"):
             raise StateError("Can't add items to order in state %s" % str(self.order.order_state))
         try:
             # See if we have an existing item
-            item = OrderItem.objects.get(order=self, product__product__sku=sku)
+            item = OrderItem.objects.get(order=self, product__product__sku=sku,
+                    reference=reference)
             item.quantity = item.quantity + quantity
             item.save()
         except ObjectDoesNotExist:
             listing = Listing.objects.get(product__sku=sku)
             item = OrderItem.objects.create(order=self,
-                    product=listing, quantity=quantity)
+                    product=listing,
+                    quantity=quantity,
+                    reference=reference)
         return item
 
     def can_transition(self, action_type, event):
@@ -678,6 +686,7 @@ class OrderItem(models.Model):
     order = models.ForeignKey(Order, related_name='items')
     product = models.ForeignKey(Listing)
     quantity = models.PositiveIntegerField(default=1)
+    reference = models.CharField(max_length=200, blank=True, null=True)
     
     @property
     def provisioning_codes(self):

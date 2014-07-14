@@ -256,7 +256,12 @@ class OrderResource(ModelResource):
                 customer = models.Customer.objects.get(username=username)
             except ObjectDoesNotExist:
                 return bad_request("Customer does not exist")
-        order = models.Order.objects.create(store=store, customer=customer, currency=store.default_currency)
+        address = models.Address.objects.filter(customer=customer).order_by("-created_at").first()
+        order = models.Order.objects.create(store=store,
+                customer=customer,
+                currency=store.default_currency,
+                billing_address=address,
+                reference=order_data.get("reference"))
         items = {}
         for sku, qty in order_data.get("items", {}).items():
             #listing = models.Listing.objects.get(product__sku=sku) # TODO handle error if listing not valid
