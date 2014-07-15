@@ -788,6 +788,7 @@ class Invoice(models.Model):
     customer_id = models.IntegerField()
     store_id = models.IntegerField()
 
+    username = models.CharField('Username', max_length=100)
     user_fullname = models.CharField('Fullname', max_length=100)
     user_document_type = models.CharField('Document Type', max_length=20)
     user_document = models.CharField('Document Number', max_length=100)
@@ -802,15 +803,17 @@ class Invoice(models.Model):
     shipping_address_zipcode = models.CharField('Shipping Address Zip Code', max_length=100, blank=True)
     shipping_address_province = models.CharField('Shipping Address Province', max_length=100, blank=True)
     shipping_address_country = models.CharField('Shipping Address Country', max_length=100, blank=True)
-    billing_address_line1 = models.CharField('Billing Address line 1', max_length=200)
-    billing_address_line2 = models.CharField('Billing Address line 2', max_length=200)
-    billing_address_line3 = models.CharField('Billing Address line 3', max_length=200)
-    billing_address_city = models.CharField('Billing Address City', max_length=100)
-    billing_address_zipcode = models.CharField('Billing Address Zip Code', max_length=100)
-    billing_address_province = models.CharField('Billing Address Province', max_length=100)
-    billing_address_country = models.CharField('Billing Address Country', max_length=100)
+    billing_address_line1 = models.CharField('Billing Address line 1', max_length=200, blank=True)
+    billing_address_line2 = models.CharField('Billing Address line 2', max_length=200, blank=True)
+    billing_address_line3 = models.CharField('Billing Address line 3', max_length=200, blank=True)
+    billing_address_city = models.CharField('Billing Address City', max_length=100, blank=True)
+    billing_address_zipcode = models.CharField('Billing Address Zip Code', max_length=100,blank=True)
+    billing_address_province = models.CharField('Billing Address Province', max_length=100,blank=True)
+    billing_address_country = models.CharField('Billing Address Country', max_length=100,blank=True)
 
     payment_made_ts = models.DateTimeField('Payment Date')
+    order_state = models.CharField('Order State', max_length=50, blank=True, null=True)
+    payment_state = models.CharField('Payment State', max_length=50, blank=True, null=True)
     coupon = models.CharField('Coupon Code', max_length=1000, blank=True, null=True)
     skus = models.CharField('SKUs', max_length=2000)
     products = models.CharField('Products Detail', max_length=2000)
@@ -841,8 +844,9 @@ class Invoice(models.Model):
             return
 
         inv.order_id = order.id
-        inv.customer_id = customer.id
         inv.store_id = order.store.id
+        inv.customer_id = customer.id
+        inv.username = customer.username
         inv.user_fullname = customer.full_name 
         inv.user_document_type = profile.document_type
         inv.user_document = profile.document
@@ -867,6 +871,8 @@ class Invoice(models.Model):
             inv.shipping_address_province = sa.province
             inv.shipping_address_country = sa.country
         inv.payment_made_ts = order.created_at
+        inv.order_state = order.order_state
+        inv.payment_state = order.payment_state
         inv.coupon = ""
         if order.coupon:
             c = order.coupon
