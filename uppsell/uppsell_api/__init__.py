@@ -12,6 +12,8 @@ uppsell.api.add_resource(resources.CustomerAddressResource,
 uppsell.api.add_resource(resources.CardResource,
     r'customers/(?P<customer__id>\d*)/cards$',
     r'customers/(?P<customer__id>\d*)/cards/(?P<id>\d*)$')
+uppsell.api.add_resource(resources.ProfileResource,
+    r'customers/(?P<customer__id>\d*)/profile$')
 
 uppsell.api.add_resource(resources.ProductResource,
     r'^products$',

@@ -115,6 +115,13 @@ class OrderCustomerInline(admin.StackedInline):
     fields = ('username', 'full_name', 'phone', 'email')
     readonly_fields  = fields
 
+class ProfileInline(admin.StackedInline):
+    model = models.Profile
+    extra = 0
+    can_delete = False
+    fields = ('full_name', 'document', 'created_at')
+    readonly_fields  = fields
+
 # ====================================================================================
 # FORMS
 # ====================================================================================
@@ -153,8 +160,11 @@ class ProductModelForm(forms.ModelForm):
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ('username', 'full_name', 'email', 'created_at')
     search_fields = ['username']
-    inlines = (CustomerAddressInline,CustomerOrderInline,)
-    
+    inlines = (CustomerAddressInline,CustomerOrderInline,ProfileInline)
+ 
+class ProfileAdmin(admin.ModelAdmin):
+    list_display = ('customer', 'full_name', 'document', 'created_at')
+
 class OrderAdmin(admin.ModelAdmin):
     list_display = ('id', 'show_store', 'show_customer', 'order_state', 'created_at')
     list_filter = ('store', 'order_state', 'payment_state')
@@ -300,6 +310,7 @@ class InvoiceAdmin(admin.ModelAdmin):
     readonly_fields  = fields
 
 admin.site.register(models.Customer, CustomerAdmin)
+admin.site.register(models.Profile, ProfileAdmin)
 admin.site.register(models.Address, AddressAdmin)
 admin.site.register(models.Store)
 admin.site.register(models.SalesTaxRate, SalesTaxRateAdmin)

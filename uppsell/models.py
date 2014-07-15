@@ -11,7 +11,6 @@ from uppsell.workflow import Workflow, BadTransition, pre_transition, post_trans
 from uppsell.exceptions import *
 from south.modelsinspector import add_introspection_rules
 from django.core import serializers
-from yuilopstore.models import Profile
 import json
 
 add_introspection_rules([], [r"^uppsell\.models\.SeparatedValuesField"])
@@ -201,6 +200,45 @@ class Customer(models.Model):
         username = "anon_%s" % str(uuid.uuid4().get_hex().upper()[0:25])
         customer = Customer.objects.create(username=username)
         return customer
+
+class Profile(models.Model):
+    DOCUMENT_TYPES = (("NIE", "NIE"),
+            ('DNI', 'DNI'),
+            ("NIF", "NIF"),
+            ("CIF", "CIF"),
+            ('PASSPORT', 'Passport'),
+            ('DRIVERS_LICENCE', "Driver's License"))
+    
+    customer = models.ForeignKey(Customer)
+    full_name = models.CharField("Full name", max_length=255)
+    document_type = models.CharField("Document type", max_length=20, choices=DOCUMENT_TYPES)
+    document = models.CharField("Document", max_length=64)
+    gender = models.CharField("Gender", blank=True, max_length=1, choices=(("M", "Hombre"), ("F", "Mujer")))
+    dob = models.DateField("DOB", blank=True, null=True)
+    created_at = models.DateTimeField('Creation date', auto_now_add=True)
+    updated_at = models.DateTimeField('Modified date',  auto_now=True)
+
+    def NIF(self, DNI):
+        NIF='TRWAGMYFPDXBNJZSQVHLCKE'
+        return DNI+NIF[int(DNI)%23]
+
+    def save(self, *args, **kwargs):
+        if self.document_type == 'DNI':
+            self.document_type = 'NIF'
+            # expecting DNI but handing a NIF :(
+            if self.document[-1] in "0123456789":
+                self.document = self.NIF(self.document)
+        elif self.document_type == 'NIF':
+            # expecting a NIF but handing a DNI :(
+            if self.document[-1] in "0123456789":
+                self.document = self.NIF(self.document)
+        super(Profile, self).save(*args, **kwargs)
+    class Meta:
+        db_table = 'profiles'
+        verbose_name = 'Profile'
+        verbose_name_plural = 'Profiles'
+
+
 
 class Address(models.Model):
     customer = models.ForeignKey(Customer)
