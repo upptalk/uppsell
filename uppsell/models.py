@@ -756,11 +756,25 @@ class Invoice(models.Model):
     user_mobile_msisdn = models.CharField('Phone Number', max_length=200)
     user_email = models.CharField('Email', max_length=200)
     user_dob = models.DateField("DOB", blank=True, null=True)
-    shipping_address = models.CharField('Shipping Address', max_length=1000, blank=True)
-    billing_address = models.CharField('Billing Address', max_length=1000)
+
+    shipping_address_line1 = models.CharField('Shipping Address line 1', max_length=200, blank=True)
+    shipping_address_line2 = models.CharField('Shipping Address line 2', max_length=200, blank=True)
+    shipping_address_line3 = models.CharField('Shipping Address line 3', max_length=200, blank=True)
+    shipping_address_city = models.CharField('Shipping Address City', max_length=100, blank=True)
+    shipping_address_zipcode = models.CharField('Shipping Address Zip Code', max_length=100, blank=True)
+    shipping_address_province = models.CharField('Shipping Address Province', max_length=100, blank=True)
+    shipping_address_country = models.CharField('Shipping Address Country', max_length=100, blank=True)
+    billing_address_line1 = models.CharField('Billing Address line 1', max_length=200)
+    billing_address_line2 = models.CharField('Billing Address line 2', max_length=200)
+    billing_address_line3 = models.CharField('Billing Address line 3', max_length=200)
+    billing_address_city = models.CharField('Billing Address City', max_length=100)
+    billing_address_zipcode = models.CharField('Billing Address Zip Code', max_length=100)
+    billing_address_province = models.CharField('Billing Address Province', max_length=100)
+    billing_address_country = models.CharField('Billing Address Country', max_length=100)
 
     payment_made_ts = models.DateTimeField('Payment Date')
     coupon = models.CharField('Coupon Code', max_length=1000, blank=True, null=True)
+    skus = models.CharField('SKUs', max_length=2000)
     products = models.CharField('Products Detail', max_length=2000)
 
     currency = models.CharField(max_length=3)
@@ -798,19 +812,29 @@ class Invoice(models.Model):
         inv.user_email = customer.email
         inv.user_dob = profile.dob
         ba = order.billing_address
-        inv.billing_address = ba.line1 +" "+ ba.line2 +" "+ ba.line3 + ba.city +" "+ ba.zip +" "+ ba.province +" "+ ba.country
+        inv.billing_address_line1 = ba.line1 
+        inv.billing_address_line2 = ba.line2   
+        inv.billing_address_line3 = ba.line3
+        inv.billing_address_city = ba.city
+        inv.billing_address_zipcode = ba.zip
+        inv.billing_address_province = ba.province
+        inv.billing_address_country = ba.country
         if order.shipping_address:
             sa = order.shipping_address
-            inv.shipping_address =  sa.line1 +" "+ sa.line2 +" "+ sa.line3 + sa.city +" "+ sa.zip +" "+ sa.province +" "+ sa.country
-        else:
-            inv.shipping_address = ""
+            inv.shipping_address_line1 = sa.line1 
+            inv.shipping_address_line2 = sa.line2
+            inv.shipping_address_line3 = sa.line3
+            inv.shipping_address_city = sa.city
+            inv.shipping_address_zipcode = sa.zip
+            inv.shipping_address_province = sa.province
+            inv.shipping_address_country = sa.country
         inv.payment_made_ts = order.created_at
         inv.coupon = ""
         if order.coupon:
             c = order.coupon
             coupon = {"id":c.id, "name":c.name, "type":c.type, "code":c.code, "discount":str(c.discount_amount)}
             inv.coupon = json.dumps(coupon)
-        products = []
+        products, skus = [], []
         for order_item in OrderItem.objects.filter(order=order):
             listing = order_item.product
             product = {"sku": listing.product.sku,
@@ -820,7 +844,9 @@ class Invoice(models.Model):
                 "quantity": order_item.quantity,
             }
             products.append(product)
+            skus.append(listing.product.sku)
         inv.products = json.dumps(products)
+        inv.skus = ",".join(skus)
         inv.currency = order.currency
         totals = order.totals
         inv.order_sub_total = totals['sub_total']
