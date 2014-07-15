@@ -1,6 +1,7 @@
 from functools import update_wrapper
 from decimal import Decimal, ROUND_UP
 from django.contrib import admin, messages
+from django.utils.encoding import smart_str
 from django import forms
 from django.conf.urls import url, patterns
 from django.contrib.admin.util import (unquote, flatten_fieldsets, get_deleted_objects,
@@ -8,6 +9,7 @@ from django.contrib.admin.util import (unquote, flatten_fieldsets, get_deleted_o
 from django.http import HttpResponse, HttpResponseRedirect
 from uppsell import models
 from uppsell.workflow import BadTransition
+import csv
 
 #====================================================================================
 # Field formatters
@@ -300,6 +302,31 @@ class CouponAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('remaining',)
 
+# START EXPORT ACTIONS
+def export_csv(modeladmin, request, queryset):
+    opts = queryset.model._meta
+    model = queryset.model
+    response = HttpResponse(mimetype='text/csv')
+    # force download
+    response['Content-Disposition'] = 'attachment;filename=invoices.csv'
+    # the csv writer
+    writer = csv.writer(response)
+    field_names = [field.name for field in opts.fields]
+    # Write a first row with header information
+    writer.writerow(field_names)
+    # Write data rows
+    for obj in queryset:
+        writer.writerow([getattr(obj, field) for field in field_names])
+    return response
+export_csv.short_description = u"Export to CSV"
+
+def export_xls(modeladmin, request, queryset):
+    pass
+
+def export_xlsx(modeladmin, request, queryset):
+    pass
+# END EXPORT ACTIONS
+
 class InvoiceAdmin(admin.ModelAdmin):
     fields = ('id', 'order_id', 'customer_id', 'store_id', 'username', 'user_fullname', 'user_document_type', 
               'user_document', 'user_mobile_msisdn', 'user_email', 'user_dob', 'shipping_address_line1', 'shipping_address_line2',
@@ -312,6 +339,7 @@ class InvoiceAdmin(admin.ModelAdmin):
     list_display = ('id', 'user_fullname', 'user_document', 'payment_made_ts', 'order_sub_total', 
                     'order_shipping_total', 'order_tax_total', 'order_discount_total', 'order_total')
     readonly_fields  = fields
+    actions = [export_csv]
 
 admin.site.register(models.Customer, CustomerAdmin)
 admin.site.register(models.Profile, ProfileAdmin)
