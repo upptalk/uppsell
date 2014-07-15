@@ -301,8 +301,11 @@ class CouponAdmin(admin.ModelAdmin):
 
 class InvoiceAdmin(admin.ModelAdmin):
     fields = ('id', 'order_id', 'customer_id', 'store_id', 'user_fullname', 'user_document_type', 'user_document',
-              'user_mobile_msisdn', 'user_email', 'user_dob', 'shipping_address', 'billing_address',
-              'payment_made_ts', 'coupon', 'products', 'currency', 'order_sub_total', 'order_shipping_total',
+              'user_mobile_msisdn', 'user_email', 'user_dob', 'shipping_address_line1', 'shipping_address_line2',
+              'shipping_address_line3', 'shipping_address_city', 'shipping_address_zipcode', 'shipping_address_province', 
+              'shipping_address_country', 'billing_address_line1', 'billing_address_line2', 'billing_address_line3',
+              'billing_address_city', 'billing_address_zipcode', 'billing_address_province', 'billing_address_country',
+              'payment_made_ts', 'coupon', 'skus', 'products', 'currency', 'order_sub_total', 'order_shipping_total',
               'order_tax_total', 'order_gross_total', 'order_discount_total', 'order_total') 
 
     list_display = ('id', 'user_fullname', 'user_document', 'payment_made_ts', 'order_sub_total', 
