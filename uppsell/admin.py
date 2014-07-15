@@ -161,15 +161,16 @@ class ProductModelForm(forms.ModelForm):
 
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ('username', 'full_name', 'email', 'created_at')
-    search_fields = ['username']
+    search_fields = ['username', 'full_name', 'email']
     inlines = (CustomerAddressInline,CustomerOrderInline,ProfileInline)
- 
+    
 class ProfileAdmin(admin.ModelAdmin):
     list_display = ('customer', 'full_name', 'document', 'created_at')
 
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('id', 'show_store', 'show_customer', 'order_state', 'created_at')
+    list_display = ('id', 'show_store', 'show_customer', 'order_state', 'show_items', 'created_at')
     list_filter = ('store', 'order_state', 'payment_state')
+    search_fields = ('id', 'customer__username', 'customer__full_name', 'customer__email')
     #actions = order_actions
     fields = ('store', 'customer', "transaction_id", "shipping_address",
             "billing_address", "currency", 'order_state', 'payment_state',
@@ -248,7 +249,7 @@ class OrderAdmin(admin.ModelAdmin):
     show_email.short_description = "Email"
     
     def show_items(self, obj):
-        items = models.OrderItem.objects.filter(id=obj.id)
+        items = models.OrderItem.objects.filter(order_id=obj.id)
         return "<br/>".join([str(item) for item in items])
     show_items.allow_tags = True
     show_items.short_description = "Items"
