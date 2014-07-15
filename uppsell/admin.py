@@ -115,6 +115,13 @@ class OrderCustomerInline(admin.StackedInline):
     fields = ('username', 'full_name', 'phone', 'email')
     readonly_fields  = fields
 
+class ProfileInline(admin.StackedInline):
+    model = models.Profile
+    extra = 0
+    can_delete = False
+    fields = ('full_name', 'document', 'created_at')
+    readonly_fields  = fields
+
 # ====================================================================================
 # FORMS
 # ====================================================================================
@@ -153,8 +160,11 @@ class ProductModelForm(forms.ModelForm):
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ('username', 'full_name', 'email', 'created_at')
     search_fields = ['username', 'full_name', 'email']
-    inlines = (CustomerAddressInline,CustomerOrderInline,)
+    inlines = (CustomerAddressInline,CustomerOrderInline,ProfileInline)
     
+class ProfileAdmin(admin.ModelAdmin):
+    list_display = ('customer', 'full_name', 'document', 'created_at')
+
 class OrderAdmin(admin.ModelAdmin):
     list_display = ('id', 'show_store', 'show_customer', 'order_state', 'show_items', 'created_at')
     list_filter = ('store', 'order_state', 'payment_state')
@@ -162,9 +172,9 @@ class OrderAdmin(admin.ModelAdmin):
     #actions = order_actions
     fields = ('store', 'customer', "transaction_id", "shipping_address",
             "billing_address", "currency", 'order_state', 'payment_state',
-            'coupon', 'payment_made_ts', 'created_at', 'updated_at',)
+            'coupon', 'reference', 'payment_made_ts', 'created_at', 'updated_at',)
     readonly_fields = ("transaction_id", 'order_state', 'payment_state', 'customer', 'store',
-            "shipping_address", "billing_address", 'payment_made_ts',
+            "shipping_address", "billing_address", "currency", 'payment_made_ts',
             'created_at', 'updated_at',)
     inlines = (OrderItemInline,OrderEventInline,)
     
@@ -290,7 +300,21 @@ class CouponAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('remaining',)
 
+class InvoiceAdmin(admin.ModelAdmin):
+    fields = ('id', 'order_id', 'customer_id', 'store_id', 'upptalk_username', 'user_fullname', 'user_document_type', 
+              'user_document', 'user_mobile_msisdn', 'user_email', 'user_dob', 'shipping_address_line1', 'shipping_address_line2',
+              'shipping_address_line3', 'shipping_address_city', 'shipping_address_zipcode', 'shipping_address_province', 
+              'shipping_address_country', 'billing_address_line1', 'billing_address_line2', 'billing_address_line3',
+              'billing_address_city', 'billing_address_zipcode', 'billing_address_province', 'billing_address_country',
+              'payment_made_ts', 'order_state', 'payment_state', 'coupon', 'skus', 'products', 'currency', 'order_sub_total', 
+              'order_shipping_total', 'order_tax_total', 'order_gross_total', 'order_discount_total', 'order_total') 
+
+    list_display = ('id', 'user_fullname', 'user_document', 'payment_made_ts', 'order_sub_total', 
+                    'order_shipping_total', 'order_tax_total', 'order_discount_total', 'order_total')
+    readonly_fields  = fields
+
 admin.site.register(models.Customer, CustomerAdmin)
+admin.site.register(models.Profile, ProfileAdmin)
 admin.site.register(models.Address, AddressAdmin)
 admin.site.register(models.Store)
 admin.site.register(models.SalesTaxRate, SalesTaxRateAdmin)
@@ -298,6 +322,6 @@ admin.site.register(models.ProductGroup)
 admin.site.register(models.Product, ProductAdmin)
 admin.site.register(models.Listing, ListingAdmin)
 admin.site.register(models.Order, OrderAdmin)
-admin.site.register(models.Invoice)
 admin.site.register(models.Coupon, CouponAdmin)
+admin.site.register(models.Invoice, InvoiceAdmin)
 

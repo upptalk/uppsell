@@ -11,6 +11,7 @@ from uppsell.workflow import Workflow, BadTransition, pre_transition, post_trans
 from uppsell.exceptions import *
 from south.modelsinspector import add_introspection_rules
 from django.core import serializers
+import json
 
 add_introspection_rules([], [r"^uppsell\.models\.SeparatedValuesField"])
 
@@ -143,7 +144,7 @@ class Urn(object):
         return self._props.get(item)
     def __unicode__(self):
         as_str = "urn:%s:%s" % (self.nsid, self.nssid)
-        if self._props != {}:
+        if self._props:
             props = ":".join(["%s:%s"%(k,v) for k,v in self._props.items()])
             as_str = "%s:%s" % (as_str, props)
         return as_str
@@ -199,6 +200,45 @@ class Customer(models.Model):
         username = "anon_%s" % str(uuid.uuid4().get_hex().upper()[0:25])
         customer = Customer.objects.create(username=username)
         return customer
+
+class Profile(models.Model):
+    DOCUMENT_TYPES = (("NIE", "NIE"),
+            ('DNI', 'DNI'),
+            ("NIF", "NIF"),
+            ("CIF", "CIF"),
+            ('PASSPORT', 'Passport'),
+            ('DRIVERS_LICENCE', "Driver's License"))
+    
+    customer = models.ForeignKey(Customer)
+    full_name = models.CharField("Full name", max_length=255)
+    document_type = models.CharField("Document type", max_length=20, choices=DOCUMENT_TYPES)
+    document = models.CharField("Document", max_length=64)
+    gender = models.CharField("Gender", blank=True, max_length=1, choices=(("M", "Hombre"), ("F", "Mujer")))
+    dob = models.DateField("DOB", blank=True, null=True)
+    created_at = models.DateTimeField('Creation date', auto_now_add=True)
+    updated_at = models.DateTimeField('Modified date',  auto_now=True)
+
+    def NIF(self, DNI):
+        NIF='TRWAGMYFPDXBNJZSQVHLCKE'
+        return DNI+NIF[int(DNI)%23]
+
+    def save(self, *args, **kwargs):
+        if self.document_type == 'DNI':
+            self.document_type = 'NIF'
+            # expecting DNI but handing a NIF :(
+            if self.document[-1] in "0123456789":
+                self.document = self.NIF(self.document)
+        elif self.document_type == 'NIF':
+            # expecting a NIF but handing a DNI :(
+            if self.document[-1] in "0123456789":
+                self.document = self.NIF(self.document)
+        super(Profile, self).save(*args, **kwargs)
+    class Meta:
+        db_table = 'profiles'
+        verbose_name = 'Profile'
+        verbose_name_plural = 'Profiles'
+
+
 
 class Address(models.Model):
     customer = models.ForeignKey(Customer)
@@ -513,6 +553,7 @@ class Order(models.Model):
     transaction_id = models.CharField(max_length=200, blank=True, null=True)
     shipping_address = models.ForeignKey(Address, related_name="shipping_address", null=True, blank=True)
     billing_address = models.ForeignKey(Address, related_name="billing_address", null=True, blank=True)
+    reference = models.CharField(max_length=200, blank=True, null=True)
 
     currency = models.CharField(max_length=3)
 
@@ -546,18 +587,25 @@ class Order(models.Model):
             raise StateError("Can't remove items from order in state %s" % str(self.order_state))
         return OrderItem.objects.filter(order=self).delete()
     
-    def add_item(self, sku, quantity = 1):
+    @property
+    def items(self):
+        return OrderItem.objects.filter(order=self)
+
+    def add_item(self, sku, quantity = 1, reference = None):
         if self.order_state not in ("init", "pending_payment"):
             raise StateError("Can't add items to order in state %s" % str(self.order.order_state))
         try:
             # See if we have an existing item
-            item = OrderItem.objects.get(order=self, product__product__sku=sku)
+            item = OrderItem.objects.get(order=self, product__product__sku=sku,
+                    reference=reference)
             item.quantity = item.quantity + quantity
             item.save()
         except ObjectDoesNotExist:
             listing = Listing.objects.get(product__sku=sku)
             item = OrderItem.objects.create(order=self,
-                    product=listing, quantity=quantity)
+                    product=listing,
+                    quantity=quantity,
+                    reference=reference)
         return item
 
     def can_transition(self, action_type, event):
@@ -678,6 +726,7 @@ class OrderItem(models.Model):
     order = models.ForeignKey(Order, related_name='items')
     product = models.ForeignKey(Listing)
     quantity = models.PositiveIntegerField(default=1)
+    reference = models.CharField(max_length=200, blank=True, null=True)
     
     @property
     def provisioning_codes(self):
@@ -735,105 +784,122 @@ class OrderEvent(models.Model):
         super(OrderEvent, self).save(*args, **kwargs)
     
 class Invoice(models.Model):
-    order_id = models.IntegerField(unique=True) # non-relational
-    store_id = models.IntegerField() # non-relational
-    transaction_id = models.CharField(max_length=200, blank=True)
-    payment_state = models.CharField(max_length=50, blank=True)
-    order_total = models.DecimalField(max_digits=8, decimal_places=2)
-    order_sub_total = models.DecimalField(max_digits=8, decimal_places=2)
-    order_tax_total = models.DecimalField(max_digits=8, decimal_places=2)
-    order_shipping_total = models.DecimalField(max_digits=8, decimal_places=2)
-    currency = models.CharField(max_length=3)
-    user_fullname = models.CharField(max_length=100) # TODO is 100 chars enough?
-    upptalk_username = models.CharField(max_length=100)
-    shipping_address = models.CharField(max_length=1000, blank=True) # TODO, if this is Json-encoded, why not use a Json field type?
-    billing_address = models.CharField(max_length=1000) # Same with this - JSON field?
-    user_mobile_msisdn = models.CharField(max_length=200)
-    user_email = models.CharField(max_length=200)
-    payment_made_ts = models.DateTimeField('timestamp payment captured')
-    created_at = models.DateTimeField('timestamp created', auto_now_add=True)
-    coupon = models.CharField(max_length=1000, blank=True, null=True)
-    products = models.CharField(max_length=2000) # TODO is 2000 chars enough? Use Json?
-    
-    # where do I get this from?
-    #psp_id = models.IntegerField() # non-relational
-    #psp_response_code = models.CharField(max_length=200)
-    #psp_response_text = models.CharField(max_length=10000)
-    #psp_type = models.CharField(max_length=200)
-    
-    # JSON encoder
-    @staticmethod
-    def encode(data):
-        return serializers.serialize('json', [data])
+    order_id = models.IntegerField(unique=True)
+    customer_id = models.IntegerField()
+    store_id = models.IntegerField()
 
+    username = models.CharField('Username', max_length=100)
+    user_fullname = models.CharField('Fullname', max_length=100)
+    user_document_type = models.CharField('Document Type', max_length=20)
+    user_document = models.CharField('Document Number', max_length=100)
+    user_mobile_msisdn = models.CharField('Phone Number', max_length=200)
+    user_email = models.CharField('Email', max_length=200)
+    user_dob = models.DateField("DOB", blank=True, null=True)
+
+    shipping_address_line1 = models.CharField('Shipping Address line 1', max_length=200, blank=True)
+    shipping_address_line2 = models.CharField('Shipping Address line 2', max_length=200, blank=True)
+    shipping_address_line3 = models.CharField('Shipping Address line 3', max_length=200, blank=True)
+    shipping_address_city = models.CharField('Shipping Address City', max_length=100, blank=True)
+    shipping_address_zipcode = models.CharField('Shipping Address Zip Code', max_length=100, blank=True)
+    shipping_address_province = models.CharField('Shipping Address Province', max_length=100, blank=True)
+    shipping_address_country = models.CharField('Shipping Address Country', max_length=100, blank=True)
+    billing_address_line1 = models.CharField('Billing Address line 1', max_length=200, blank=True)
+    billing_address_line2 = models.CharField('Billing Address line 2', max_length=200, blank=True)
+    billing_address_line3 = models.CharField('Billing Address line 3', max_length=200, blank=True)
+    billing_address_city = models.CharField('Billing Address City', max_length=100, blank=True)
+    billing_address_zipcode = models.CharField('Billing Address Zip Code', max_length=100,blank=True)
+    billing_address_province = models.CharField('Billing Address Province', max_length=100,blank=True)
+    billing_address_country = models.CharField('Billing Address Country', max_length=100,blank=True)
+
+    payment_made_ts = models.DateTimeField('Payment Date')
+    order_state = models.CharField('Order State', max_length=50, blank=True, null=True)
+    payment_state = models.CharField('Payment State', max_length=50, blank=True, null=True)
+    coupon = models.CharField('Coupon Code', max_length=1000, blank=True, null=True)
+    skus = models.CharField('SKUs', max_length=2000)
+    products = models.CharField('Products Detail', max_length=2000)
+
+    currency = models.CharField(max_length=3)
+    order_sub_total = models.DecimalField('Sub Total', max_digits=8, decimal_places=2)
+    order_shipping_total = models.DecimalField('Shipping Total', max_digits=8, decimal_places=2)
+    order_tax_total = models.DecimalField('Tax Total', max_digits=8, decimal_places=2)
+    order_gross_total = models.DecimalField('Gross Total', max_digits=8, decimal_places=2)
+    order_discount_total = models.DecimalField('Discount', max_digits=8, decimal_places=2)
+    order_total = models.DecimalField('TOTAL', max_digits=8, decimal_places=2)
+    
     @staticmethod
     def create_invoice(order):
-        # get related objects and data
-        customer = order.customer
-        totals   = order.totals
+        if order.order_state == "pending_payment":
+            raise ValueError, "Unable to generate invoice for incomplete order"
+        try:
+            return Invoice.objects.get(order_id=order.id)
+        except Invoice.DoesNotExist:
+            pass
 
-        # fill up fields
-        order_id = order.id
-        store_id = order.store.id
-        transaction_id = order.transaction_id
-        payment_state = order.payment_state
-        order_total = totals['total_total']
-        order_sub_total = totals['sub_total']
-        order_tax_total = totals['tax_total']
-        order_shipping_total = totals['shipping_total']
-        currency = order.currency
-        user_fullname = customer.full_name 
-        upptalk_username = customer.username
-        shipping_address = ""
+        inv = Invoice()
+        customer = order.customer
+
+        try:
+            profile = Profile.objects.get(customer=customer)
+        except Profile.DoesNotExist:
+            return
+
+        inv.order_id = order.id
+        inv.store_id = order.store.id
+        inv.customer_id = customer.id
+        inv.username = customer.username
+        inv.user_fullname = customer.full_name 
+        inv.user_document_type = profile.document_type
+        inv.user_document = profile.document
+        inv.user_mobile_msisdn = customer.phone
+        inv.user_email = customer.email
+        inv.user_dob = profile.dob
+        ba = order.billing_address
+        inv.billing_address_line1 = ba.line1 
+        inv.billing_address_line2 = ba.line2   
+        inv.billing_address_line3 = ba.line3
+        inv.billing_address_city = ba.city
+        inv.billing_address_zipcode = ba.zip
+        inv.billing_address_province = ba.province
+        inv.billing_address_country = ba.country
         if order.shipping_address:
-            shipping_address = Invoice.encode(order.shipping_address)
-        billing_address = Invoice.encode(order.billing_address)
-        user_mobile_msisdn = customer.phone
-        user_email = customer.email
-        payment_made_ts = order.payment_made_ts
-        created_at = order.created_at
-        coupon = ""
+            sa = order.shipping_address
+            inv.shipping_address_line1 = sa.line1 
+            inv.shipping_address_line2 = sa.line2
+            inv.shipping_address_line3 = sa.line3
+            inv.shipping_address_city = sa.city
+            inv.shipping_address_zipcode = sa.zip
+            inv.shipping_address_province = sa.province
+            inv.shipping_address_country = sa.country
+        inv.payment_made_ts = order.created_at
+        inv.order_state = order.order_state
+        inv.payment_state = order.payment_state
+        inv.coupon = ""
         if order.coupon:
-            coupon = Invoice.encode(order.coupon)
-        products = {}
+            c = order.coupon
+            coupon = {"id":c.id, "name":c.name, "type":c.type, "code":c.code, "discount":str(c.discount_amount)}
+            inv.coupon = json.dumps(coupon)
+        products, skus = [], []
         for order_item in OrderItem.objects.filter(order=order):
             listing = order_item.product
-            # TODO: define the key once and re-use
-            # TODO: why not use the SKU as the key?
-            products['listing_'+listing.id] = {}
-            products['listing_'+listing.id]['store'] = listing.store
-            products['listing_'+listing.id]['product'] = Invoice.encode(listing.product)
-            products['listing_'+listing.id]['tax_rate'] = listing.tax_rate
-            products['listing_'+listing.id]['state'] = listing.state
-            products['listing_'+listing.id]['price'] = listing.price
-            products['listing_'+listing.id]['shipping'] = listing.shipping
-            products['listing_'+listing.id]['name'] = listing.name
-            products['listing_'+listing.id]['title'] = listing.title
-            products['listing_'+listing.id]['subtitle'] = listing.subtitle
-            products['listing_'+listing.id]['description'] = listing.description
-            products['listing_'+listing.id]['features'] = listing.features
-            # TODO: listing sku?
-            # TODO: listing quantity?
-        products = str(products) # XXX: why do we convert to string here? Wht not use Json?
-        inv = Invoice( # TODO: why not create an Invoice instance at the beginning of this method and fill it up, rather than use local variables?
-            order_id=order_id,
-            store_id=store_id,
-            transaction_id=transaction_id,
-            payment_state=payment_state,
-            order_total=order_total,
-            order_sub_total=order_sub_total,
-            order_tax_total=order_tax_total,
-            order_shipping_total=order_shipping_total,
-            currency=currency,
-            user_fullname=user_fullname,
-            upptalk_username=upptalk_username,
-            billing_address=billing_address,
-            user_mobile_msisdn=user_mobile_msisdn,
-            user_email=user_email,
-            payment_made_ts=str(payment_made_ts),
-            created_at=str(created_at),
-            coupon=coupon,
-            products=products)
+            product = {"sku": listing.product.sku,
+                "name": listing.product.name,
+                "tax_rate": str(listing.tax_rate.rate),
+                "net_price": str(listing.price),
+                "quantity": order_item.quantity,
+            }
+            products.append(product)
+            skus.append(listing.product.sku)
+        inv.products = json.dumps(products)
+        inv.skus = ",".join(skus)
+        inv.currency = order.currency
+        totals = order.totals
+        inv.order_sub_total = totals['sub_total']
+        inv.order_shipping_total = totals['shipping_total']
+        inv.order_tax_total = totals['tax_total']
+        inv.order_gross_total = totals['gross_total']
+        inv.order_discount_total = totals['discount_total']
+        inv.order_total = totals['total_total']
+
         inv.save()
         return inv
 
@@ -900,8 +966,7 @@ def notify_order_on_payment_not_required(signal, key, transition, sender, model,
 
 @post_transition("payment_state", Order, "capture", "captured")
 def generate_invoice(signal, key, transition, sender, model, state):
-    # TODO
-    pass
+    Invoice.create_invoice(order=model)
 
 #@post_transition("order_state", Order, "capture", "processing")
 #def notify_order_shipping(signal, key, transition, sender, model, state):

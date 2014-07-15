@@ -85,6 +85,39 @@ class CustomerResource(ModelResource):
             return conflict("Customer already exists")
         return created(result=customer)
 
+class ProfileResource(ModelResource):
+    required_params = ['customer__id']
+    model = models.Profile
+    
+    def _get_profile(self, **params):
+        try:
+            return self.model.objects.filter(**params).order_by('-id')[0]
+        except IndexError:
+            return None
+
+    def get_list(self, request, *args, **kwargs):
+        profile = self._get_profile(**kwargs)
+        if profile is None:
+            return not_found()
+        return ok(self.label, result=profile)
+
+    def post_list(self, request, *args, **kwargs):
+        """Create / update profile"""
+        try:
+            customer = Customer.objects.get(id=kwargs["customer__id"])
+        except ObjectDoesNotExist:
+            return not_found("Customer does not exist")
+        profile_data = dict(request.POST.items() + [("customer", customer)])
+        profile = self._get_profile(**kwargs)
+        if profile is None:
+            profile = models.Profile.objects.create(**profile_data)
+            return created(result=profile)
+        else:
+            for key, val in profile_data.items():
+                setattr(profile, key, val)
+            profile.save()
+            return ok(result=profile)
+
 class CustomerAddressResource(ModelResource):
     required_params = ['customer__id']
     model = models.Address
@@ -256,7 +289,12 @@ class OrderResource(ModelResource):
                 customer = models.Customer.objects.get(username=username)
             except ObjectDoesNotExist:
                 return bad_request("Customer does not exist")
-        order = models.Order.objects.create(store=store, customer=customer, currency=store.default_currency)
+        address = models.Address.objects.filter(customer=customer).order_by("-created_at").first()
+        order = models.Order.objects.create(store=store,
+                customer=customer,
+                currency=store.default_currency,
+                billing_address=address,
+                reference=order_data.get("reference"))
         items = {}
         for sku, qty in order_data.get("items", {}).items():
             #listing = models.Listing.objects.get(product__sku=sku) # TODO handle error if listing not valid
