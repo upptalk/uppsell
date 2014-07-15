@@ -302,106 +302,30 @@ class CouponAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('remaining',)
 
-# EXPORT ACTIONS
-def write_header(writer):
-    writer.writerow([
-        smart_str(u"order_id"),
-        smart_str(u"customer_id"),
-        smart_str(u"store_id"),
-        smart_str(u"username"),
-        smart_str(u"fullname"),
-        smart_str(u"document_type"),
-        smart_str(u"document"),
-        smart_str(u"mobile"),
-        smart_str(u"email"),
-        smart_str(u"dob"),
-        smart_str(u"shipping_address_line1"),
-        smart_str(u"shipping_address_line2"),
-        smart_str(u"shipping_address_line3"),
-        smart_str(u"shipping_address_city"),
-        smart_str(u"shipping_address_zipcode"),
-        smart_str(u"shipping_address_province"),
-        smart_str(u"shipping_address_country"),
-        smart_str(u"billing_address_line1"),
-        smart_str(u"billing_address_line2"),
-        smart_str(u"billing_address_line3"),
-        smart_str(u"billing_address_city"),
-        smart_str(u"billing_address_zipcode"),
-        smart_str(u"billing_address_province"),
-        smart_str(u"billing_address_country"),
-        smart_str(u"payment_date"),
-        smart_str(u"order_state") or "",
-        smart_str(u"payment_state") or "",
-        smart_str(u"coupon"),
-        smart_str(u"skus"),
-        smart_str(u"products"),
-        smart_str(u"currency"),
-        smart_str(u"sub_total"),
-        smart_str(u"shipping_total"),
-        smart_str(u"tax_total"),
-        smart_str(u"gross_total"),
-        smart_str(u"discount_total"),
-        smart_str(u"total"),
-    ])
-
-def write_row(writer, obj):
-    writer.writerow([
-        smart_str(obj.order_id),
-        smart_str(obj.customer_id),
-        smart_str(obj.store_id),
-        smart_str(obj.username),
-        smart_str(obj.user_fullname),
-        smart_str(obj.user_document_type),
-        smart_str(obj.user_document),
-        smart_str(obj.user_mobile_msisdn),
-        smart_str(obj.user_email),
-        smart_str(obj.user_dob),
-        smart_str(obj.shipping_address_line1),
-        smart_str(obj.shipping_address_line2),
-        smart_str(obj.shipping_address_line3),
-        smart_str(obj.shipping_address_city),
-        smart_str(obj.shipping_address_zipcode),
-        smart_str(obj.shipping_address_province),
-        smart_str(obj.shipping_address_country),
-        smart_str(obj.billing_address_line1),
-        smart_str(obj.billing_address_line2),
-        smart_str(obj.billing_address_line3),
-        smart_str(obj.billing_address_city),
-        smart_str(obj.billing_address_zipcode),
-        smart_str(obj.billing_address_province),
-        smart_str(obj.billing_address_country),
-        smart_str(obj.payment_made_ts),
-        smart_str(obj.order_state),
-        smart_str(obj.payment_state),
-        smart_str(obj.coupon),
-        smart_str(obj.skus),
-        smart_str(obj.products),
-        smart_str(obj.currency),
-        smart_str(obj.order_sub_total),
-        smart_str(obj.order_shipping_total),
-        smart_str(obj.order_tax_total),
-        smart_str(obj.order_gross_total),
-        smart_str(obj.order_discount_total),
-        smart_str(obj.order_total),
-    ])
-
+# START EXPORT ACTIONS
 def export_csv(modeladmin, request, queryset):
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename=invoices.csv'
-    writer = csv.writer(response, csv.excel)
-    response.write(u'\ufeff'.encode('utf8'))
-    write_header(writer)
+    opts = queryset.model._meta
+    model = queryset.model
+    response = HttpResponse(mimetype='text/csv')
+    # force download
+    response['Content-Disposition'] = 'attachment;filename=invoices.csv'
+    # the csv writer
+    writer = csv.writer(response)
+    field_names = [field.name for field in opts.fields]
+    # Write a first row with header information
+    writer.writerow(field_names)
+    # Write data rows
     for obj in queryset:
-        write_row(writer, obj)
+        writer.writerow([getattr(obj, field) for field in field_names])
     return response
 export_csv.short_description = u"Export to CSV"
-# END EXPORT ACTIONS
 
 def export_xls(modeladmin, request, queryset):
     pass
 
 def export_xlsx(modeladmin, request, queryset):
     pass
+# END EXPORT ACTIONS
 
 class InvoiceAdmin(admin.ModelAdmin):
     fields = ('id', 'order_id', 'customer_id', 'store_id', 'username', 'user_fullname', 'user_document_type', 
