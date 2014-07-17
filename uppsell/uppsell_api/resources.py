@@ -104,7 +104,7 @@ class ProfileResource(ModelResource):
     def post_list(self, request, *args, **kwargs):
         """Create / update profile"""
         try:
-            customer = Customer.objects.get(id=kwargs["customer__id"])
+            customer = models.Customer.objects.get(id=kwargs["customer__id"])
         except ObjectDoesNotExist:
             return not_found("Customer does not exist")
         profile_data = dict(request.POST.items() + [("customer", customer)])

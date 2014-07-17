@@ -601,7 +601,7 @@ class Order(models.Model):
             item.quantity = item.quantity + quantity
             item.save()
         except ObjectDoesNotExist:
-            listing = Listing.objects.get(product__sku=sku)
+            listing = Listing.objects.get(product__sku=sku, store=self.store)
             item = OrderItem.objects.create(order=self,
                     product=listing,
                     quantity=quantity,
@@ -815,6 +815,7 @@ class Invoice(models.Model):
     order_state = models.CharField('Order State', max_length=50, blank=True, null=True)
     payment_state = models.CharField('Payment State', max_length=50, blank=True, null=True)
     coupon = models.CharField('Coupon Code', max_length=1000, blank=True, null=True)
+    
     skus = models.CharField('SKUs', max_length=2000)
     products = models.CharField('Products Detail', max_length=2000)
 
