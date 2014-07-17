@@ -289,6 +289,8 @@ class AddressAdmin(admin.ModelAdmin):
 
 class CouponAdmin(admin.ModelAdmin):
     list_display = ('code', 'name', 'max_uses', 'remaining', 'valid_until')
+    list_filter = ('store','product', 'product_group')
+    search_fields = ('code', 'name')
     fieldsets = (
         (None, {
             'fields': ('code', 'name', 'type', 'discount_amount', 'discount_shipping')
