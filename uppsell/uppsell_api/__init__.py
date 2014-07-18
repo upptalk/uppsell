@@ -42,3 +42,6 @@ uppsell.api.add_resource(resources.OrderItemResource,
 uppsell.api.add_resource(resources.OrderEventResource,
     r'orders/(?P<order>[^/]*)/events$')
 
+uppsell.api.add_resource(resources.CouponResource,
+    r'coupons/(?P<code>[^/]*)$')
+

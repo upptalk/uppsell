@@ -65,6 +65,16 @@ class ProductResource(ModelResource):
 class StoreResource(ModelResource):
     model = models.Store
 
+class CouponResource(ModelResource):
+    model = models.Coupon
+
+    def get_item(self, request, *args, **kwargs):
+        try:
+            coupon = models.Coupon.objects.get(code=kwargs["code"])
+        except models.Coupon.DoesNotExist:
+            return not_found()
+        return ok(self.label, result=coupon, store=coupon.store, product=coupon.product)
+
 class CustomerResource(ModelResource):
     model = models.Customer
    
