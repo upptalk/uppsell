@@ -32,8 +32,11 @@ def format_listing(listing, quantity = None):
     prod_dict['tax_rate'] = listing.tax_rate.rate
     for k in ('name', 'title', 'subtitle', 'description', 'features'):
         if listing_dict[k].strip(): prod_dict[k] = listing_dict[k]
-    prod_dict['features'] = [f for f in \
-            [f.strip() for f in prod_dict['features'].split("\n")] if f]
+    if prod_dict['features']:
+        prod_dict['features'] = [f for f in \
+                [f.strip() for f in prod_dict['features'].split("\n")] if f]
+    else:
+        prod_dict['features'] = []
     if quantity is not None:
         prod_dict['quantity'] = quantity
     prod_dict['cost'] = listing.get_cost(quantity)
