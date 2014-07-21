@@ -56,6 +56,7 @@ def format_order(order):
     order_dict["items"] = OrderedDict([(item.product.product.sku, format_listing(item.product, item.quantity)) for item in order.items.all()])
     order_dict["order_actions"] = order.order_actions
     order_dict["payment_actions"] = order.payment_actions
+    order_dict["store_code"] = order.store.code
     return order_dict
 
 class CardResource(ModelResource):
