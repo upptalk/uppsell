@@ -30,6 +30,7 @@ def format_listing(listing, quantity = None):
     prod_dict['price'] = listing_dict['price']
     prod_dict['shipping'] = listing_dict['shipping']
     prod_dict['tax_rate'] = listing.tax_rate.rate
+    prod_dict['group_name'] = listing.product.group.name
     for k in ('name', 'title', 'subtitle', 'description', 'features'):
         if listing_dict[k]: prod_dict[k] = listing_dict[k]
     if prod_dict['features']:
