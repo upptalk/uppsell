@@ -497,12 +497,15 @@ class Coupon(models.Model):
         super(Coupon, self).save(*args, **kwargs)
 
     def spend(self, customer, order=None):
+        if order and self.store and self.store != order.store:
+            # The coupon can only be use in a different store
+            raise CouponSpendError()
         now_ts = now()
         if now_ts < self.valid_from or now_ts > self.valid_until:
-            raise CouponDateError
+            raise CouponDateError()
         try:
             existing = CouponSpend.objects.get(coupon=self, customer=customer)
-            raise CouponDoubleSpendError
+            raise CouponDoubleSpendError()
         except ObjectDoesNotExist:
             pass
         spend = CouponSpend.objects.create(coupon=self, customer=customer)

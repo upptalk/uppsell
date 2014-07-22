@@ -263,8 +263,6 @@ class OrderResource(ModelResource):
                 items = []
                 for sku, qty in POST.get("items", {}).items():
                     try:
-                        #listing = models.Listing.objects.get(store=order.store, product__sku=sku)
-                        #items.append(models.OrderItem.objects.create(order=order, product=listing, quantity=qty))
                         items.append(order.add_item(sku, qty))
                     except ObjectDoesNotExist:
                         pass
@@ -281,6 +279,8 @@ class OrderResource(ModelResource):
                 return bad_request("coupon_date_error", result=order)
             except CouponDoubleSpendError:
                 return bad_request("coupon_double_spend", result=order)
+            except CouponSpendError:
+                return bad_request("coupon_invalid", result=order)
         return ok(self.label, result=order)
 
     def post_list(self, request, *args, **kwargs):
