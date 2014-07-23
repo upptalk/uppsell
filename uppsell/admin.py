@@ -268,6 +268,9 @@ class ProductAdmin(admin.ModelAdmin):
         ('Stock and shipping', {
             'fields': ('shipping', 'has_stock', 'stock_units', 'provisioning_codes',)
         }),
+        ('Validity', {
+            'fields': ('validity_unit', 'validity',)
+        }),
     )
     
     def show_pvcs(self, obj):

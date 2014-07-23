@@ -322,12 +322,24 @@ class ProductGroup(models.Model):
         return self.name
 
 class Product(models.Model):
+    
+    VALIDITY_UNITS = (('forever', 'Forever'),
+            ('seconds', 'Seconds'),
+            ('minutes', 'Minute'),
+            ('hours', 'Hours'),
+            ('days', 'Days'),
+            ('weeks', 'Days'),
+            ('months', 'Months'),
+            ('years', 'Years'))
+
     group = models.ForeignKey(ProductGroup)
     sku = models.CharField(max_length=200)
     shipping = models.BooleanField("Uses shipping")
     has_stock = models.BooleanField("Uses stock control")
     provisioning_codes = SeparatedValuesField(max_length=5000, token="\n", wrapper=Urn,
             blank=True, null=True, help_text="Internal identifiers for service provisioning")
+    validity_unit = models.CharField(max_length=10, choices=VALIDITY_UNITS, null=False, default='forever')
+    validity = models.IntegerField(null=False, default=0)
     name = models.CharField(max_length=200, help_text="Internal name of product")
     title = models.CharField(max_length=200)
     subtitle = models.CharField(max_length=200)
