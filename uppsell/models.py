@@ -530,9 +530,9 @@ class Coupon(models.Model):
             multiplier = Decimal(0.01) * self.discount_amount
             discounted = multiplier * price
             return max(0, discounted)
-        elif self.coupon.type == "fixed_discount":
-            discounted = price - self.coupon.discount_amount
-            return max(0, discounted)
+        elif self.type == "fixed_discount":
+            #discounted = price - self.discount_amount
+            return max(0.0, self.discount_amount)
         return price
 
     def __unicode__(self):
@@ -699,17 +699,20 @@ class Order(models.Model):
             return None
         costs = self.get_costs()
         if self.coupon.product:
+            print "self.coupon.product:", self.coupon.product
             for product, _, _, gross, _, shipping in costs:
                 if product == self.coupon.product:
                     if self.coupon.discount_shipping:
                         return gross + shipping
                     return gross
-        if self.coupon.product_group:
+            return 0.0
+        elif self.coupon.product_group:
             for product, _, _, gross, _, shipping in costs:
                 if product.group == self.coupon.product_group:
                     if self.coupon.discount_shipping:
                         return gross + shipping
                     return gross
+            return 0.0
         if self.coupon.discount_shipping:
             return order_gross_total + order_shipping_total
         return order_gross_total
