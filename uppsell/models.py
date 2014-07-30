@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import json, uuid
 from decimal import Decimal
 from collections import OrderedDict
 from django.db import models
@@ -11,7 +12,6 @@ from uppsell.workflow import Workflow, BadTransition, pre_transition, post_trans
 from uppsell.exceptions import *
 from south.modelsinspector import add_introspection_rules
 from django.core import serializers
-import json
 
 add_introspection_rules([], [r"^uppsell\.models\.SeparatedValuesField"])
 
@@ -196,10 +196,10 @@ class Customer(models.Model):
     def __unicode__(self):
         return self.username
 
-    def create_anonymous(self):
-        username = "anon_%s" % str(uuid.uuid4().get_hex().upper()[0:25])
-        customer = Customer.objects.create(username=username)
-        return customer
+    def save(self, *args, **kwargs):
+        if self.username in (None, ""):
+            self.username = "anon_%s" % str(uuid.uuid4().get_hex().upper()[0:25])
+        super(Customer, self).save(*args, **kwargs)
 
 class Profile(models.Model):
     DOCUMENT_TYPES = (("NIE", "NIE"),

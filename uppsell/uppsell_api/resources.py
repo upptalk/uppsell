@@ -84,19 +84,22 @@ class CustomerResource(ModelResource):
     model = models.Customer
    
     def post_list(self, request, *args, **kwargs):
-        """Create a new address"""
+        """Create a new customer"""
+        username = request.POST.get("username")
+        if username:
+            try:
+                existing = models.Customer.objects.get(username=username)
+                return conflict("Customer already exists", result=existing)
+            except ObjectDoesNotExist:
+                pass
         try:
-            existing = models.Customer.objects.get(username=request.POST.get("username"))
-            return conflict("Customer already exists", result=existing)
-        except ObjectDoesNotExist:
-            pass
-        try:
+            print "request.POST", request.POST.items()
             customer = models.Customer()
             for prop, val in request.POST.items():
                 if prop not in self.immutable_fields:
                     setattr(customer, prop, val)
             customer.save()
-        except IntegrityError:
+        except IntegrityError, e:
             return conflict("Customer already exists")
         return created(result=customer)
 
@@ -298,7 +301,7 @@ class OrderResource(ModelResource):
             return bad_request("Store does not exist")
         username = order_data.get("customer")
         if not username:
-            customer = make_anonymous_customer()
+            customer = models.Customer.objects.create()
         else:
             try:
                 customer = models.Customer.objects.get(username=username)

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from django.views.generic import View
 from django.core.exceptions import ObjectDoesNotExist, FieldError
+from django.db import IntegrityError
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.http import QueryDict
@@ -96,7 +97,10 @@ class ModelResource(Resource):
         for prop, val in POST.items():
             if prop not in self.immutable_fields:
                 setattr(instance, prop, val)
-        instance.save()
+        try:
+            instance.save()
+        except IntegrityError, e:
+            return conflict()
         return ok(self.label, result=instance)
     
     def put_list(self, request, *args, **kwargs):
