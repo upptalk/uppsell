@@ -606,6 +606,16 @@ class Order(models.Model):
     def items(self):
         return OrderItem.objects.filter(order=self)
 
+    def get_product_codes_and_quantities(self, nssid=None):
+        for order_item in self.items:
+            for urn in order_item.provisioning_codes:
+                if nssid is not None:
+                    if urn.nssid==nssid:
+                        yield (urn["id"], order_items.quantity)
+                else:
+                    yield (urn["id"], order_items.quantity)
+
+
     def add_item(self, sku, quantity = 1, reference = None):
         if self.order_state not in ("init", "pending_payment"):
             raise StateError("Can't add items to order in state %s" % str(self.order.order_state))
@@ -749,6 +759,7 @@ class OrderItem(models.Model):
     @property
     def provisioning_codes(self):
         return self.product.product.provisioning_codes
+
     @property
     def sku(self):
         return self.product.product.sku
