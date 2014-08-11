@@ -571,6 +571,8 @@ class Order(models.Model):
     reference = models.CharField(max_length=200, blank=True, null=True)
 
     currency = models.CharField(max_length=3)
+    wholesale = models.BooleanField("Wholesale order?", default=False,
+            help_text="Check this if the order is a wholesale order for merchants.")
 
     payment_made_ts = models.DateTimeField('timestamp payment captured', null=True, blank=True)
     created_at = models.DateTimeField('timestamp created', auto_now_add=True)

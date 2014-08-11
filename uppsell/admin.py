@@ -172,12 +172,13 @@ class OrderAdmin(admin.ModelAdmin):
     list_filter = ('store', 'order_state', 'payment_state')
     search_fields = ('id', 'customer__username', 'customer__full_name', 'customer__email')
     #actions = order_actions
-    fields = ('store', 'show_customer', "transaction_id", "shipping_address",
+    fields = ('store', 'customer', "show_customer", "transaction_id", "shipping_address",
             "billing_address", "currency", 'order_state', 'payment_state',
-            'coupon', 'reference', 'payment_made_ts', 'created_at', 'updated_at',)
-    readonly_fields = ("transaction_id", 'order_state', 'payment_state', 'show_customer', 'store',
-            "shipping_address", "billing_address", "currency", 'payment_made_ts',
-            'created_at', 'updated_at',)
+            'coupon', 'reference', 'payment_made_ts', 'wholesale',)
+    readonly_fields = ("show_customer",'order_state', 'payment_state','payment_made_ts')
+#    readonly_fields = ("transaction_id", 'order_state', 'payment_state', 'show_customer', 'store',
+#            "shipping_address", "billing_address", "currency", 'payment_made_ts',
+#            'created_at', 'updated_at',)
     inlines = (OrderItemInline,OrderEventInline,)
     
     def get_urls(self):
@@ -239,7 +240,7 @@ class OrderAdmin(admin.ModelAdmin):
             return link
         return "%s (%s)" % (link, obj.customer.email)
     show_customer.allow_tags = True
-    show_customer.short_description = "Customer"
+    show_customer.short_description = "Customer ctd."
     
     def show_email(self, obj):
         if not obj.customer:
