@@ -604,19 +604,15 @@ class Order(models.Model):
             raise StateError("Can't remove items from order in state %s" % str(self.order_state))
         return OrderItem.objects.filter(order=self).delete()
     
-    @property
-    def items(self):
-        return OrderItem.objects.filter(order=self)
-
     def get_product_codes_and_quantities(self, nssid=None):
-        for order_item in self.items:
+        for order_item in self.items.all():
+            print "order_item", order_item
             for urn in order_item.provisioning_codes:
                 if nssid is not None:
-                    if urn.nssid==nssid:
-                        yield (urn["id"], order_items.quantity)
+                    if urn.nssid == nssid:
+                        yield (urn, order_item.quantity)
                 else:
-                    yield (urn["id"], order_items.quantity)
-
+                    yield (urn, order_item.quantity)
 
     def add_item(self, sku, quantity = 1, reference = None):
         if self.order_state not in ("init", "pending_payment"):
