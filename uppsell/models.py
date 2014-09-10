@@ -310,7 +310,7 @@ class SalesTaxRate(models.Model):
     
     def __unicode__(self):
         pct = round(self.rate*100)
-        return "%s%%" % pct
+        return "%s %s%%" % (self.abbreviation, pct)
 
 class ProductGroup(models.Model):
     name = models.CharField(max_length=50)
