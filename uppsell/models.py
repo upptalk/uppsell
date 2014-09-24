@@ -184,6 +184,21 @@ class Customer(models.Model):
     created_at = models.DateTimeField('Date Added', auto_now_add=True)
     last_logged_in_at = models.DateTimeField('Last logged in', blank=True, null=True)
     
+    @staticmethod
+    def get_by_id_or_username(id = None, username = None):
+        customer = None
+        if id:
+            try:
+                customer = models.Customer.get(id=id)
+            except Customer.DoesNotExist:
+                pass
+        elif username:
+            try:
+                customer = models.Customer.get(username=username)
+            except Customer.DoesNotExist:
+                pass
+        return customer
+
     class Meta:
         db_table = 'customers'
         verbose_name = 'Customer'
